@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PlayIcon, PauseIcon, QueueIcon, HeartIcon, HeartOutlineIcon } from "./icons";
+import GlassCard from "./GlassCard";
 import { addToQueue, saveTrack, removeTrack } from "../lib/spotify";
 import type { SpotifyAlbum, SpotifyArtist, SpotifyPlaylist, SpotifyTrack, SpotifyUser } from "../types/spotify";
 
@@ -39,11 +40,11 @@ type Props = {
 
 function CardSkeleton() {
   return (
-    <div className="glass-card p-3 animate-pulse">
+    <GlassCard className="p-3 animate-pulse">
       <div className="aspect-square rounded-[6px] bg-[var(--color-surface-card)] mb-3" />
       <div className="h-4 rounded bg-[var(--color-surface-card)] mb-2 w-4/5" />
       <div className="h-3 rounded bg-[var(--color-surface-card)] w-3/5" />
-    </div>
+    </GlassCard>
   );
 }
 
