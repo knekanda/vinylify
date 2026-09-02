@@ -109,10 +109,29 @@ export default function Home() {
     await prev();
   }, []);
 
-  const handleMuteToggle = useCallback(async () => {
-    const { setVolume } = await import("../lib/spotify");
-    await setVolume(0);
-  }, []);
+  const handleMuteToggle = useCallback(() => {
+    sdk.toggleMute();
+  }, [sdk]);
+
+  const handleSeek = useCallback(
+    (deltaMs: number) => {
+      void (async () => {
+        const { seekTo } = await import("../lib/spotify");
+        const target = Math.max(0, Math.min(durationMs || 0, progressMs + deltaMs));
+        const result = await seekTo(target);
+        if (result.ok) setProgressMs(target);
+      })();
+    },
+    [durationMs, progressMs]
+  );
+
+  const handleVolumeDelta = useCallback(
+    (delta: number) => {
+      const next = Math.max(0, Math.min(100, sdk.state.volume * 100 + delta));
+      sdk.setVolume(next);
+    },
+    [sdk]
+  );
 
   const handleSearchFocus = useCallback(() => {
     const input = document.querySelector<HTMLInputElement>(
@@ -135,6 +154,8 @@ export default function Home() {
     onPrevious: handlePrevious,
     onMuteToggle: handleMuteToggle,
     onSearchFocus: handleSearchFocus,
+    onSeek: handleSeek,
+    onVolume: handleVolumeDelta,
   });
 
   // Auth + data loading

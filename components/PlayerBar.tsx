@@ -174,22 +174,6 @@ export default function PlayerBar({
 
   const prevVolumeRef = useRef<number>(70);
 
-  const handleVolumeUp = useCallback(async () => {
-    const next = Math.min(100, volume + 10);
-    setVolumeState(next);
-    prevVolumeRef.current = next;
-    const result = await setVolume(next);
-    if (!result.ok) showNotice("Could not change volume");
-  }, [volume, showNotice]);
-
-  const handleVolumeDown = useCallback(async () => {
-    const next = Math.max(0, volume - 10);
-    setVolumeState(next);
-    prevVolumeRef.current = next;
-    const result = await setVolume(next);
-    if (!result.ok) showNotice("Could not change volume");
-  }, [volume, showNotice]);
-
   const handleMute = useCallback(async () => {
     if (volume > 0) {
       prevVolumeRef.current = volume;

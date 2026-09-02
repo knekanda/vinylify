@@ -8,6 +8,8 @@ type Props = {
   onPrevious: () => void;
   onMuteToggle: () => void;
   onSearchFocus: () => void;
+  onSeek?: (deltaMs: number) => void;
+  onVolume?: (delta: number) => void;
 };
 
 export function useKeyboardShortcuts({
@@ -16,6 +18,8 @@ export function useKeyboardShortcuts({
   onPrevious,
   onMuteToggle,
   onSearchFocus,
+  onSeek,
+  onVolume,
 }: Props) {
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -40,12 +44,32 @@ export function useKeyboardShortcuts({
         case "ArrowRight":
           if (e.shiftKey) {
             onNext();
+          } else if (onSeek) {
+            e.preventDefault();
+            onSeek(10000);
           }
           break;
 
         case "ArrowLeft":
           if (e.shiftKey) {
             onPrevious();
+          } else if (onSeek) {
+            e.preventDefault();
+            onSeek(-10000);
+          }
+          break;
+
+        case "ArrowUp":
+          if (onVolume) {
+            e.preventDefault();
+            onVolume(5);
+          }
+          break;
+
+        case "ArrowDown":
+          if (onVolume) {
+            e.preventDefault();
+            onVolume(-5);
           }
           break;
 
@@ -68,5 +92,5 @@ export function useKeyboardShortcuts({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onPlayPause, onNext, onPrevious, onMuteToggle, onSearchFocus]);
+  }, [onPlayPause, onNext, onPrevious, onMuteToggle, onSearchFocus, onSeek, onVolume]);
 }
