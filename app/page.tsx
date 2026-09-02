@@ -386,6 +386,7 @@ export default function Home() {
       <div className="dynamic-bg">
         {albumImageUrl ? (
           <img
+            key={albumImageUrl}
             src={albumImageUrl}
             alt=""
             className="dynamic-bg-image"

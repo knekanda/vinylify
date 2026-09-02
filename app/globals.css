@@ -348,6 +348,16 @@ body {
   object-fit: cover;
   filter: blur(100px) saturate(1.4) brightness(0.2);
   transform: scale(1.1);
+  animation: dynamic-bg-fade 900ms var(--ease) both;
+}
+
+@keyframes dynamic-bg-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .dynamic-bg-overlay {
@@ -699,6 +709,10 @@ body {
   .animate-queue-drawer-in,
   .animate-vinyl-spin,
   .animate-vinyl-spin-paused {
+    animation: none;
+  }
+
+  .dynamic-bg-image {
     animation: none;
   }
 
