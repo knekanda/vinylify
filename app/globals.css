@@ -1,26 +1,655 @@
 @import "tailwindcss";
 
+/* ─── Design Tokens ────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surface hierarchy — Spotify-inspired depth through brightness */
+  --color-bg: #000000;
+  --color-surface: #121212;
+  --color-surface-elevated: #181818;
+  --color-surface-interactive: #1f1f1f;
+  --color-surface-card: #282828;
+  --color-surface-card-hover: #292929;
+
+  /* Text — opacity layers */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.78);
+  --color-text-tertiary: rgba(255, 255, 255, 0.56);
+  --color-text-disabled: rgba(255, 255, 255, 0.32);
+  --color-text-on-accent: #000000;
+
+  /* Dual accent */
+  --color-accent: #1ed760;
+  --color-accent-hover: #1db954;
+  --color-info: #2997FF;
+  --color-info-hover: #0A84FF;
+
+  /* Borders */
+  --color-border: rgba(255, 255, 255, 0.10);
+  --color-border-strong: rgba(255, 255, 255, 0.18);
+  --color-border-soft: rgba(255, 255, 255, 0.06);
+
+  /* Semantic */
+  --color-danger: #ff453a;
+  --color-success: #30d158;
+
+  /* Typography — Apple Music scale (11px–80px) */
+  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-size-hero: 80px;
+  --font-size-display: 56px;
+  --font-size-title-lg: 32px;
+  --font-size-title: 24px;
+  --font-size-headline: 17px;
+  --font-size-body: 17px;
+  --font-size-callout: 16px;
+  --font-size-subhead: 14px;
+  --font-size-footnote: 13px;
+  --font-size-caption: 12px;
+  --font-size-micro: 11px;
+
+  /* Spacing — 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Motion — Spotify timing */
+  --ease: cubic-bezier(0.3, 0, 0, 1);
+  --ease-apple: cubic-bezier(0.4, 0, 0.6, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 320ms;
+  --duration-slide: 300ms;
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 500px;
+  --radius-full: 9999px;
+
+  /* Shadows — heavy for dark mode */
+  --shadow-card: rgba(0, 0, 0, 0.3) 0px 8px 8px;
+  --shadow-elevated: rgba(0, 0, 0, 0.5) 0px 8px 24px;
+  --shadow-album: rgba(0, 0, 0, 0.5) 0px 24px 64px, rgba(0, 0, 0, 0.3) 0px 8px 24px;
+
+  /* Tap target */
+  --tap-target: 44px;
+
+  /* Sidebar */
+  --sidebar-width: 280px;
+  --sidebar-collapsed: 72px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-family);
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ─── Scrollbar ────────────────────────────────────────────────── */
+*::-webkit-scrollbar {
+  width: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ─── Animations ──────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes playerSheetIn {
+  from { opacity: 0.5; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes vinylSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes eqBounce1 {
+  0%, 100% { height: 4px; }
+  50% { height: 16px; }
+}
+
+@keyframes eqBounce2 {
+  0%, 100% { height: 8px; }
+  50% { height: 12px; }
+}
+
+@keyframes eqBounce3 {
+  0%, 100% { height: 6px; }
+  50% { height: 14px; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(30, 215, 96, 0.12); }
+  50% { box-shadow: 0 0 40px rgba(30, 215, 96, 0.24); }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--duration-slow) var(--ease) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp var(--duration-slow) var(--ease) forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn var(--duration-slow) var(--ease) forwards;
+}
+
+.animate-player-sheet-in {
+  animation: playerSheetIn var(--duration-slow) var(--ease-apple) forwards;
+}
+
+.animate-vinyl-spin {
+  animation: vinylSpin 40s linear infinite;
+}
+
+.animate-vinyl-spin-paused {
+  animation: vinylSpin 40s linear infinite;
+  animation-play-state: paused;
+}
+
+.animate-eq-1 {
+  animation: eqBounce1 0.45s var(--ease) infinite;
+}
+
+.animate-eq-2 {
+  animation: eqBounce2 0.55s var(--ease) infinite 0.1s;
+}
+
+.animate-eq-3 {
+  animation: eqBounce3 0.5s var(--ease) infinite 0.2s;
+}
+
+/* ─── Glass Materials — Multi-layer premium ──────────────────── */
+
+/* Standard glass — panels, sidebars */
+.glass {
+  position: relative;
+  background: rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(12px) saturate(160%) brightness(1.05);
+  backdrop-filter: blur(12px) saturate(160%) brightness(1.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Heavy glass — nav bar, player bar */
+.glass-heavy {
+  position: relative;
+  background: rgba(0, 0, 0, 0.65);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.05);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Card glass — content cards */
+.glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  transition: background var(--duration-fast) var(--ease),
+              border-color var(--duration-fast) var(--ease);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+/* ─── Accent Glows ────────────────────────────────────────────── */
+.green-glow {
+  box-shadow: 0 0 20px rgba(30, 215, 96, 0.1);
+}
+
+.green-glow-strong {
+  box-shadow: 0 4px 24px rgba(30, 215, 96, 0.2);
+}
+
+/* ─── Play Button — Spotify-style ─────────────────────────────── */
+.play-btn-hover {
+  transition: transform var(--duration-fast) var(--ease),
+              box-shadow var(--duration-fast) var(--ease),
+              background-color var(--duration-fast) var(--ease);
+}
+
+.play-btn-hover:hover {
+  transform: scale(1.06);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.play-btn-hover:active {
+  transform: scale(0.97);
+}
+
+/* ─── Dynamic Background ──────────────────────────────────────── */
+.dynamic-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.dynamic-bg-image {
+  position: absolute;
+  inset: -20%;
+  width: 140%;
+  height: 140%;
+  object-fit: cover;
+  filter: blur(100px) saturate(1.4) brightness(0.2);
+  transform: scale(1.1);
+}
+
+.dynamic-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.4) 0%,
+    rgba(0, 0, 0, 0.65) 40%,
+    var(--color-bg) 85%
+  );
+}
+
+/* ─── Album Art Shadows ──────────────────────────────────────── */
+.hero-album-shadow {
+  filter: drop-shadow(0 24px 64px rgba(0, 0, 0, 0.5))
+          drop-shadow(0 8px 24px rgba(0, 0, 0, 0.3));
+}
+
+/* ─── Progress Bar — Spotify-style thin → expand ────────────── */
+.progress-bar-container {
+  position: relative;
+  height: 12px;
+  cursor: pointer;
+}
+
+.progress-bar-track {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  width: 100%;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: height var(--duration-fast) var(--ease),
+              background var(--duration-fast) var(--ease);
+}
+
+.progress-bar-container:hover .progress-bar-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.progress-bar-fill {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: var(--color-text-primary);
+  transition: height var(--duration-fast) var(--ease),
+              background var(--duration-fast) var(--ease);
+}
+
+.progress-bar-container:hover .progress-bar-fill {
+  height: 6px;
+  background: var(--color-accent);
+}
+
+.progress-bar-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-text-primary);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+
+.progress-bar-container:hover .progress-bar-thumb {
+  opacity: 1;
+}
+
+/* Now Playing — always-visible thumb, thicker fills */
+.now-progress .progress-bar-track,
+.now-progress .progress-bar-fill {
+  height: 6px;
+}
+
+.now-progress:hover .progress-bar-track,
+.now-progress:hover .progress-bar-fill {
+  height: 7px;
+}
+
+.now-progress .progress-bar-thumb {
+  width: 16px;
+  height: 16px;
+  opacity: 1;
+}
+
+/* ─── Now Playing — Spotify split view entrances ─────────────── */
+@keyframes nowArtIn {
+  from {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes nowContentIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-now-art-in {
+  animation: nowArtIn calc(var(--duration-slow) * 1.1) var(--ease-apple) forwards;
+}
+
+.animate-now-content-in {
+  animation: nowContentIn var(--duration-slow) var(--ease-apple) calc(var(--duration-slow) * 0.25) backwards;
+}
+
+/* Queue drawer — slides in from the right inside the Now Playing overlay */
+@keyframes queueDrawerIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-queue-drawer-in {
+  animation: queueDrawerIn 320ms var(--ease-apple) forwards;
+}
+
+/* ─── Home — Apple Music-style horizontal snap rows ──────────── */
+.snap-row {
+  scroll-snap-type: x proximity;
+}
+
+.snap-row::-webkit-scrollbar {
+  display: none;
+}
+
+.snap-row > * {
+  scroll-snap-align: start;
+}
+
+.home-hero-glow {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.25) 100%);
+}
+
+/* ─── Nav Pill — Apple search bar ─────────────────────────────── */
+.nav-pill {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  transition: background var(--duration-fast) var(--ease),
+              border-color var(--duration-fast) var(--ease),
+              box-shadow var(--duration-fast) var(--ease);
+}
+
+.nav-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.nav-pill:focus-within {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(30, 215, 96, 0.4);
+  box-shadow: 0 0 0 3px rgba(30, 215, 96, 0.12);
+}
+
+/* ─── Logo — Static, premium ──────────────────────────────────── */
+.logo-container {
+  position: relative;
+}
+
+.logo-glow {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(30, 215, 96, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease);
+}
+
+.logo-container:hover .logo-glow {
+  opacity: 1;
+}
+
+.logo-text {
+  background: linear-gradient(
+    90deg,
+    var(--color-text-primary) 0%,
+    var(--color-text-primary) 40%,
+    var(--color-accent) 50%,
+    var(--color-text-primary) 60%,
+    var(--color-text-primary) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transition: background-position 0.6s var(--ease);
+}
+
+.logo-container:hover .logo-text {
+  background-position: 200% center;
+}
+
+/* ─── Utility: Typography classes ──────────────────────────────── */
+
+/* Hero: 80px bold — for major featured headings */
+.text-vinyl-hero {
+  font-size: 80px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+
+/* Display: 56px bold */
+.text-vinyl-display {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1.07;
+  letter-spacing: -0.022em;
+}
+
+/* Title Large: 32px bold */
+.text-vinyl-title-lg {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+/* Title: 24px bold */
+.text-vinyl-title {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+/* Headline: 17px semibold */
+.text-vinyl-headline {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+/* Body: 17px regular */
+.text-vinyl-body {
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* Body Strong: 17px semibold */
+.text-vinyl-body-strong {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Callout: 16px regular */
+.text-vinyl-callout {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+/* Subhead: 14px regular */
+.text-vinyl-subhead {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+/* Label: 14px bold — buttons, nav items */
+.text-vinyl-label {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* Footnote: 13px regular */
+.text-vinyl-footnote {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.38;
+}
+
+/* Caption: 12px regular */
+.text-vinyl-caption {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+/* Eyebrow: 12px bold uppercase — section headers */
+.text-vinyl-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Micro: 11px */
+.text-vinyl-micro {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* Tabular numbers for durations */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Utility: Apple text compat (legacy) ──────────────────────── */
+.text-apple-display { font-size: 34px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.12; }
+.text-apple-title1 { font-size: 28px; font-weight: 600; letter-spacing: 0.01em; line-height: 1.2; }
+.text-apple-title2 { font-size: 22px; font-weight: 600; letter-spacing: 0.01em; line-height: 1.27; }
+.text-apple-headline { font-size: 17px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.29; }
+.text-apple-body { font-size: 17px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.29; }
+.text-apple-callout { font-size: 16px; font-weight: 400; letter-spacing: -0.01em; line-height: 1.31; }
+.text-apple-subhead { font-size: 15px; font-weight: 400; letter-spacing: -0.01em; line-height: 1.33; }
+.text-apple-footnote { font-size: 13px; font-weight: 400; line-height: 1.38; }
+.text-apple-caption { font-size: 12px; font-weight: 400; letter-spacing: 0.01em; line-height: 1.33; }
+
+/* ─── Reduced Motion ──────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in,
+  .animate-player-sheet-in,
+  .animate-now-art-in,
+  .animate-now-content-in,
+  .animate-queue-drawer-in,
+  .animate-vinyl-spin,
+  .animate-vinyl-spin-paused {
+    animation: none;
+  }
+
+  .play-btn-hover:hover {
+    transform: none;
+  }
+}
+
+/* ─── Reduced Transparency ────────────────────────────────────── */
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-heavy {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .glass {
+    background: rgba(18, 18, 18, 0.95);
+  }
+
+  .glass-heavy {
+    background: rgba(0, 0, 0, 0.95);
+  }
 }
