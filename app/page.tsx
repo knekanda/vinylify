@@ -405,7 +405,7 @@ export default function Home() {
   return (
     <div className="relative flex h-screen flex-col bg-[var(--color-bg)] text-[var(--color-text-primary)] overflow-hidden">
       {/* Dynamic Background */}
-      <div className="dynamic-bg">
+      <div className="dynamic-bg" aria-hidden="true">
         {albumImageUrl ? (
           <Image
             key={albumImageUrl}
@@ -423,7 +423,7 @@ export default function Home() {
       </div>
 
       {/* App Shell: Sidebar + Main + NowPlaying */}
-      <div className="relative z-10 flex flex-1 overflow-hidden">
+      <main className="relative z-10 flex flex-1 flex-col overflow-hidden">
         <Sidebar
           connected={connected}
           view={view}
@@ -505,10 +505,11 @@ export default function Home() {
             )}
           </div>
         </div>
-      </div>
+      </main>
 
       {/* Player Bar — fixed bottom */}
-      <PlayerBar
+      <footer>
+        <PlayerBar
         currentTrack={currentTrack}
         isPlaying={isPlaying}
         shuffle={shuffle}
@@ -522,6 +523,7 @@ export default function Home() {
         notice={notice}
         showNotice={showNotice}
       />
+      </footer>
     </div>
   );
 }
