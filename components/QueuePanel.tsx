@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { CloseIcon, PauseIcon, PlayIcon } from "./icons";
+import Image from "next/image";
 import { getQueue, playTrack } from "../lib/spotify";
 import type { SpotifyTrack } from "../types/spotify";
 
@@ -84,9 +85,11 @@ export default function QueuePanel({ currentTrack, isPlaying, onClose }: Props) 
                 </p>
                 <div className="flex items-center gap-3 rounded-md bg-[var(--color-surface-interactive)] px-3 py-2">
                   {currentTrack.album?.images?.[0]?.url ? (
-                    <img
+                    <Image
                       src={currentTrack.album.images[0].url}
                       alt={currentTrack.name}
+                      width={160}
+                      height={160}
                       className="h-10 w-10 shrink-0 rounded object-cover"
                     />
                   ) : (
@@ -141,9 +144,11 @@ export default function QueuePanel({ currentTrack, isPlaying, onClose }: Props) 
                       onClick={() => handlePlay(track)}
                     >
                       {track.album?.images?.[0]?.url ? (
-                        <img
+                        <Image
                           src={track.album.images[0].url}
                           alt={track.name}
+                          width={160}
+                          height={160}
                           className="h-10 w-10 shrink-0 rounded object-cover"
                         />
                       ) : (
@@ -205,9 +210,11 @@ export default function QueuePanel({ currentTrack, isPlaying, onClose }: Props) 
                 </p>
                 <div className="flex items-center gap-3 rounded-md bg-[var(--color-surface-interactive)] px-3 py-2">
                   {currentTrack.album?.images?.[0]?.url ? (
-                    <img
+                    <Image
                       src={currentTrack.album.images[0].url}
                       alt={currentTrack.name}
+                      width={160}
+                      height={160}
                       className="h-10 w-10 shrink-0 rounded object-cover"
                     />
                   ) : (
@@ -243,9 +250,11 @@ export default function QueuePanel({ currentTrack, isPlaying, onClose }: Props) 
                     onClick={() => handlePlay(track)}
                   >
                     {track.album?.images?.[0]?.url ? (
-                      <img
+                      <Image
                         src={track.album.images[0].url}
                         alt={track.name}
+                        width={160}
+                        height={160}
                         className="h-10 w-10 shrink-0 rounded object-cover"
                       />
                     ) : (

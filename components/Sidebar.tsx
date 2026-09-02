@@ -7,6 +7,7 @@ import {
   HeartIcon,
 } from "./icons";
 import type { SpotifyPlaylist } from "../types/spotify";
+import Image from "next/image";
 
 type Props = {
   connected: boolean;
@@ -97,9 +98,11 @@ export default function Sidebar({
                   style={{ animationDelay: `${i * 20}ms` }}
                 >
                   {cover ? (
-                    <img
+                    <Image
                       src={cover}
                       alt={playlist.name}
+                      width={160}
+                      height={160}
                       className="h-12 w-12 shrink-0 rounded-[4px] object-cover"
                     />
                   ) : (

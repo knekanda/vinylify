@@ -6,6 +6,7 @@ import TopBar from "../components/TopBar";
 import ContentGrid from "../components/ContentGrid";
 import PlayerBar from "../components/PlayerBar";
 import NowPlayingPanel from "../components/NowPlayingPanel";
+import Image from "next/image";
 import QueuePanel from "../components/QueuePanel";
 import { useSpotifyPlayer } from "../hooks/useSpotifyPlayer";
 import { useMediaSession } from "../hooks/useMediaSession";
@@ -385,10 +386,12 @@ export default function Home() {
       {/* Dynamic Background */}
       <div className="dynamic-bg">
         {albumImageUrl ? (
-          <img
+          <Image
             key={albumImageUrl}
             src={albumImageUrl}
             alt=""
+            width={1600}
+            height={900}
             className="dynamic-bg-image"
             aria-hidden="true"
           />

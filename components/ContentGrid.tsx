@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PlayIcon, PauseIcon, QueueIcon, HeartIcon, HeartOutlineIcon } from "./icons";
 import GlassCard from "./GlassCard";
 import { addToQueue, saveTrack, removeTrack } from "../lib/spotify";
+import Image from "next/image";
 import type { SpotifyAlbum, SpotifyArtist, SpotifyPlaylist, SpotifyTrack, SpotifyUser } from "../types/spotify";
 
 type Props = {
@@ -152,9 +153,11 @@ function TrackRow({
 
       {/* Cover */}
       {cover ? (
-        <img
+        <Image
           src={cover}
           alt={track.name}
+          width={160}
+          height={160}
           className="h-10 w-10 shrink-0 rounded object-cover"
         />
       ) : (
@@ -408,9 +411,11 @@ export default function ContentGrid({
                   className="group glass-card flex items-center gap-3 overflow-hidden rounded-md p-0 text-left transition-all duration-fast hover:bg-[var(--color-surface-card-hover)]"
                 >
                   {cover ? (
-                    <img
+                    <Image
                       src={cover}
                       alt={playlist.name}
+                      width={160}
+                      height={160}
                       className="h-12 w-12 shrink-0 object-cover"
                     />
                   ) : (
@@ -443,9 +448,11 @@ export default function ContentGrid({
                   >
                     <div className="mb-3 aspect-square w-full overflow-hidden rounded-full bg-[var(--color-surface-card)] shadow-lg">
                       {artist.images?.[0]?.url ? (
-                        <img
+                        <Image
                           src={artist.images[0].url}
                           alt={artist.name}
+                          width={160}
+                          height={160}
                           className="h-full w-full object-cover transition-transform duration-slow group-hover:scale-105"
                         />
                       ) : (
@@ -548,9 +555,11 @@ export default function ContentGrid({
         {/* Playlist Hero */}
         <div className="relative px-4 pb-6 pt-16 md:px-8">
           {cover ? (
-            <img
+            <Image
               src={cover}
               alt={selectedPlaylist.name}
+              width={160}
+              height={160}
               className="mx-auto mb-6 h-48 w-48 rounded-xl object-cover shadow-2xl sm:h-56 sm:w-56 animate-fade-in"
             />
           ) : (
@@ -655,9 +664,11 @@ export default function ContentGrid({
         {/* Artist Hero */}
         <div className="relative px-4 pb-6 pt-16 md:px-8">
           {artistCover ? (
-            <img
+            <Image
               src={artistCover}
               alt={selectedArtist.name}
+              width={160}
+              height={160}
               className="mx-auto mb-6 aspect-square h-48 w-48 rounded-full object-cover shadow-2xl sm:h-56 sm:w-56 animate-fade-in"
             />
           ) : (
@@ -741,9 +752,11 @@ export default function ContentGrid({
         {/* Album Hero */}
         <div className="relative px-4 pb-6 pt-16 md:px-8">
           {albumCover ? (
-            <img
+            <Image
               src={albumCover}
               alt={selectedAlbum.name}
+              width={160}
+              height={160}
               className="mx-auto mb-6 h-48 w-48 rounded-xl object-cover shadow-2xl sm:h-56 sm:w-56 animate-fade-in"
             />
           ) : (
@@ -967,9 +980,11 @@ export default function ContentGrid({
           className="group relative mt-6 block aspect-[2.4/1] w-full cursor-pointer overflow-hidden rounded-2xl text-left shadow-xl shadow-black/30 animate-fade-in sm:aspect-[2.8/1]"
         >
           {heroCover ? (
-            <img
+            <Image
               src={heroCover}
               alt={hero.name}
+              width={1600}
+              height={900}
               className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[320ms] group-hover:opacity-80"
             />
           ) : (
@@ -1048,9 +1063,11 @@ export default function ContentGrid({
               >
                 <div className="aspect-square w-full overflow-hidden rounded-full bg-[var(--color-surface-card)] shadow-md">
                   {artist.images?.[0]?.url ? (
-                    <img
+                    <Image
                       src={artist.images[0].url}
                       alt={artist.name}
+                      width={160}
+                      height={160}
                       className="h-full w-full object-cover transition-opacity duration-[320ms] group-hover:opacity-80"
                     />
                   ) : (
@@ -1108,9 +1125,11 @@ function TrackCoverCard({
     <button onClick={onClick} className="group snap-start w-32 shrink-0 text-left sm:w-36 md:w-40">
       <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-[var(--color-surface-card)] shadow-md">
         {image ? (
-          <img
+          <Image
             src={image}
             alt={title}
+            width={160}
+            height={160}
             className="h-full w-full object-cover transition-opacity duration-[320ms] group-hover:opacity-80"
           />
         ) : (

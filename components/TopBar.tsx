@@ -9,6 +9,7 @@ import {
   SearchIcon,
 } from "./icons";
 import type { SpotifyUser } from "../types/spotify";
+import Image from "next/image";
 
 type Props = {
   connected: boolean;
@@ -113,9 +114,11 @@ export default function TopBar({
               className="flex items-center gap-2 rounded-full bg-[var(--color-surface-elevated)] p-1 pr-3 transition-colors duration-fast hover:bg-[var(--color-surface-interactive)]"
             >
               {avatar ? (
-                <img
+                <Image
                   src={avatar}
                   alt={displayName}
+                  width={160}
+                  height={160}
                   className="h-8 w-8 rounded-full object-cover"
                 />
               ) : (

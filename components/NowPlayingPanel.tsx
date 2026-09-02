@@ -12,6 +12,7 @@ import {
   RepeatOneIcon,
   ShuffleIcon,
 } from "./icons";
+import Image from "next/image";
 import {
   next,
   prev,
@@ -310,7 +311,7 @@ export default function NowPlayingPanel({
         className="group flex w-full items-center gap-3 rounded-lg p-1.5 text-left transition-colors hover:bg-[var(--color-surface-interactive)]"
       >
         {art ? (
-          <img src={art} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+          <Image src={art} alt="" width={160} height={160} className="h-10 w-10 shrink-0 rounded object-cover" />
         ) : (
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-[var(--color-surface-card)] text-base">🎵</div>
         )}
@@ -334,10 +335,12 @@ export default function NowPlayingPanel({
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         {albumImageUrl ? (
           <>
-            <img
+            <Image
               src={albumImageUrl}
               alt=""
               aria-hidden="true"
+              width={1600}
+              height={900}
               className="absolute -inset-[25%] h-[150%] w-[150%] object-cover opacity-25 blur-[120px] saturate-150"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/70" />
@@ -379,9 +382,11 @@ export default function NowPlayingPanel({
         <div className="flex w-full items-center justify-center lg:h-full lg:w-1/2">
           <div className="w-full max-w-[min(46vh,360px)] lg:max-w-[min(64vh,520px)] animate-now-art-in">
             {albumImageUrl ? (
-              <img
+              <Image
                 src={albumImageUrl}
                 alt={track?.name || "Album Art"}
+                width={460}
+                height={460}
                 className="w-full aspect-square rounded-xl object-cover hero-album-shadow animate-fade-in"
               />
             ) : (
@@ -600,7 +605,7 @@ export default function NowPlayingPanel({
                 </p>
                 <div className="flex items-center gap-3 rounded-lg bg-[var(--color-surface-interactive)] p-2">
                   {albumImageUrl ? (
-                    <img src={albumImageUrl} alt="" className="h-11 w-11 shrink-0 rounded object-cover" />
+                    <Image src={albumImageUrl} alt="" width={160} height={160} className="h-11 w-11 shrink-0 rounded object-cover" />
                   ) : (
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-[var(--color-surface-card)] text-base">🎵</div>
                   )}

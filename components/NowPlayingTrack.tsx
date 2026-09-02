@@ -1,6 +1,7 @@
 "use client";
 
 import type { SpotifyTrack } from "../types/spotify";
+import Image from "next/image";
 
 type Props = {
   currentTrack: SpotifyTrack | null;
@@ -24,9 +25,11 @@ export default function NowPlayingTrack({
       aria-label="Show now playing"
     >
       {albumImageUrl ? (
-        <img
+        <Image
           src={albumImageUrl}
           alt={currentTrack?.name || "Now playing"}
+          width={160}
+          height={160}
           className={`h-14 w-14 shrink-0 rounded-md object-cover shadow-md transition-all duration-slow ${
             nowPlayingOpen
               ? "ring-2 ring-[var(--color-accent)] ring-offset-2 ring-offset-[var(--color-bg)]"
