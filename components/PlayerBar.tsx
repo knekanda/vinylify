@@ -172,20 +172,37 @@ export default function PlayerBar({
     if (!result.ok) showNotice("Could not change repeat mode");
   }, [repeat, showNotice]);
 
+  const prevVolumeRef = useRef<number>(70);
+
   const handleVolumeUp = useCallback(async () => {
-    const result = await setVolume(100);
+    const next = Math.min(100, volume + 10);
+    setVolumeState(next);
+    prevVolumeRef.current = next;
+    const result = await setVolume(next);
     if (!result.ok) showNotice("Could not change volume");
-  }, [showNotice]);
+  }, [volume, showNotice]);
 
   const handleVolumeDown = useCallback(async () => {
-    const result = await setVolume(0);
+    const next = Math.max(0, volume - 10);
+    setVolumeState(next);
+    prevVolumeRef.current = next;
+    const result = await setVolume(next);
     if (!result.ok) showNotice("Could not change volume");
-  }, [showNotice]);
+  }, [volume, showNotice]);
 
   const handleMute = useCallback(async () => {
-    const result = await setVolume(0);
-    if (!result.ok) showNotice("Could not change volume");
-  }, [showNotice]);
+    if (volume > 0) {
+      prevVolumeRef.current = volume;
+      setVolumeState(0);
+      const result = await setVolume(0);
+      if (!result.ok) showNotice("Could not change volume");
+    } else {
+      const restore = prevVolumeRef.current > 0 ? prevVolumeRef.current : 70;
+      setVolumeState(restore);
+      const result = await setVolume(restore);
+      if (!result.ok) showNotice("Could not change volume");
+    }
+  }, [volume, showNotice]);
 
   const startSeeking = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
@@ -311,7 +328,7 @@ export default function PlayerBar({
   const hasValidTrack = currentTrack !== null;
 
   return (
-    <div className="relative z-50 glass-heavy shrink-0">
+    <div className="relative z-50 glass-heavy player-bar shrink-0">
       {/* Notice toast */}
       {notice && (
         <div className="absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[var(--color-surface-card)] px-4 py-2 text-[13px] font-medium text-[var(--color-text-primary)] shadow-xl animate-slide-up z-50 border border-[var(--color-border)]">
@@ -334,7 +351,7 @@ export default function PlayerBar({
             <button
               onClick={handleSaveTrack}
               disabled={saving === currentTrack.id}
-              className={`shrink-0 transition-all duration-normal ${
+              className={`control shrink-0 transition-all duration-normal ${
                 saving === currentTrack.id
                   ? "animate-pulse"
                   : likedTracks.has(currentTrack.id)
@@ -342,6 +359,7 @@ export default function PlayerBar({
                     : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
               }`}
               aria-label="Save to Library"
+              aria-pressed={likedTracks.has(currentTrack.id)}
             >
               <HeartIcon
                 className={`h-5 w-5 ${
@@ -357,19 +375,20 @@ export default function PlayerBar({
           <div className="flex items-center gap-4">
             <button
               onClick={handleToggleShuffle}
-              className={`hidden sm:block transition-colors ${
+              className={`control hidden sm:inline-flex ${
                 shuffle
                   ? "text-[var(--color-accent)]"
-                  : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  : "text-[var(--color-text-secondary)]"
               }`}
               aria-label="Toggle shuffle"
+              aria-pressed={shuffle}
             >
               <ShuffleIcon className="h-4 w-4" />
             </button>
 
             <button
               onClick={handlePrev}
-              className="text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] active:scale-95"
+              className="control text-[var(--color-text-secondary)]"
               aria-label="Previous"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
@@ -380,7 +399,7 @@ export default function PlayerBar({
             <button
               onClick={handlePause}
               disabled={!hasValidTrack}
-              className="play-btn-hover flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-text-primary)] text-[var(--color-text-on-accent)] transition-all disabled:opacity-50 disabled:hover:transform-none"
+              className="play-btn-hover flex h-11 w-11 items-center justify-center rounded-full bg-[var(--color-text-primary)] text-[var(--color-text-on-accent)] transition-all disabled:opacity-50 disabled:hover:transform-none"
               aria-label={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
@@ -392,7 +411,7 @@ export default function PlayerBar({
 
             <button
               onClick={handleNext}
-              className="text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] active:scale-95"
+              className="control text-[var(--color-text-secondary)]"
               aria-label="Next"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
@@ -402,12 +421,13 @@ export default function PlayerBar({
 
             <button
               onClick={handleToggleRepeat}
-              className={`hidden sm:block transition-colors ${
+              className={`control hidden sm:inline-flex ${
                 repeat !== "off"
                   ? "text-[var(--color-accent)]"
-                  : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  : "text-[var(--color-text-secondary)]"
               }`}
               aria-label="Toggle repeat"
+              aria-pressed={repeat !== "off"}
             >
               {repeat === "track" ? (
                 <RepeatOneIcon className="h-4 w-4" />
@@ -451,16 +471,17 @@ export default function PlayerBar({
           </div>
         </div>
 
-        {/* Right: Volume + Queue + Device */}
-        <div className="flex items-center justify-end gap-3">
+          {/* Right: Volume + Queue + Device */}
+        <div className="flex items-center justify-end">
           <button
             onClick={onToggleNowPlaying}
-            className={`hidden md:block transition-colors ${
+            className={`control hidden md:inline-flex ${
               nowPlayingOpen
                 ? "text-[var(--color-accent)]"
-                : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-secondary)]"
             }`}
             aria-label="Now Playing"
+            aria-pressed={nowPlayingOpen}
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
               <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
@@ -469,21 +490,27 @@ export default function PlayerBar({
 
           <button
             onClick={onToggleQueue}
-            className={`hidden sm:block transition-colors ${
+            className={`control hidden sm:inline-flex ${
               queueOpen
                 ? "text-[var(--color-accent)]"
-                : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-secondary)]"
             }`}
             aria-label="Queue"
+            aria-pressed={queueOpen}
           >
             <QueueIcon className="h-4 w-4" />
           </button>
 
           <div className="relative hidden md:flex items-center gap-1">
             <button
-              onClick={handleVolumeDown}
-              className="text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-              aria-label="Volume down"
+              onClick={handleMute}
+              className={`control ${
+                volume === 0
+                  ? "text-[var(--color-text-tertiary)]"
+                  : "text-[var(--color-text-secondary)]"
+              }`}
+              aria-label={volume === 0 ? "Unmute" : "Mute"}
+              aria-pressed={volume === 0}
             >
               <SpeakerIcon className="h-4 w-4" />
             </button>
@@ -494,9 +521,11 @@ export default function PlayerBar({
               max="100"
               className="h-1 w-24 cursor-pointer accent-[var(--color-text-primary)]"
               value={volume}
+              aria-label="Volume"
               onChange={(e) => {
                 const val = parseInt(e.target.value);
                 setVolumeState(val);
+                prevVolumeRef.current = val;
                 setVolume(val);
               }}
             />
@@ -505,10 +534,13 @@ export default function PlayerBar({
           <div className="relative">
             <button
               onClick={handleToggleDevice}
-              className={`text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] ${
-                showDevices ? "text-[var(--color-accent)]" : ""
+              className={`control ${
+                showDevices
+                  ? "text-[var(--color-accent)]"
+                  : "text-[var(--color-text-secondary)]"
               }`}
               aria-label="Devices"
+              aria-pressed={showDevices}
             >
               <DeviceIcon className="h-4 w-4" />
             </button>
