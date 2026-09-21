@@ -1,9 +1,10 @@
 export async function POST(request: Request) {
   const body = await request.json();
 
-  const { code, code_verifier } = body as {
+  const { code, code_verifier, redirect_uri } = body as {
     code: string;
     code_verifier: string;
+    redirect_uri?: string;
   };
 
   if (!code || !code_verifier) {
@@ -12,6 +13,14 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+
+  // The OAuth redirect_uri must exactly match the one Spotify was called with
+  // (which is now derived from the browser origin), so prefer the client-sent
+  // value and only fall back to the configured env.
+  const effectiveRedirectUri =
+    redirect_uri ||
+    process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI ||
+    "http://127.0.0.1:3000/callback";
 
   try {
     const response = await fetch(
@@ -25,8 +34,7 @@ export async function POST(request: Request) {
           client_id: process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID!,
           grant_type: "authorization_code",
           code,
-          redirect_uri:
-            process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI!,
+          redirect_uri: effectiveRedirectUri,
           code_verifier,
         }),
       }

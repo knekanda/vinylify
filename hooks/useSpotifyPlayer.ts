@@ -7,6 +7,7 @@ import {
   getValidAccessToken,
   registerSdkControl,
   setActiveDeviceId,
+  setVolume as setRestVolume,
   transferPlayback,
 } from "../lib/spotify";
 import type { SdkControlAdapter } from "../lib/spotify";
@@ -129,6 +130,7 @@ type UseSpotifyPlayerReturn = {
   connect: () => Promise<void>;
   setVolume: (volume: number) => void;
   toggleMute: () => void;
+  syncVolume: (volumePercent: number) => void;
 };
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -161,15 +163,18 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
   const startProgressTimer = useCallback(() => {
     if (progressInterval.current) clearInterval(progressInterval.current);
 
+    // 1s cadence: commits a new progressMs ~once per second instead of 4x/sec,
+    // which cut whole-tree re-renders (progressMs lives at the page root). This
+    // still reads as smooth on the progress bar (Spotify web updates ~1Hz too).
     progressInterval.current = setInterval(() => {
       setState((prev) => {
         if (!prev.isPlaying) return prev;
         return {
           ...prev,
-          progressMs: Math.min(prev.progressMs + 250, prev.durationMs),
+          progressMs: Math.min(prev.progressMs + 1000, prev.durationMs),
         };
       });
-    }, 250);
+    }, 1000);
   }, []);
 
   const stopProgressTimer = useCallback(() => {
@@ -319,6 +324,16 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
     try {
       await loadSdkScript();
 
+      // Require a valid token before creating the player: the SDK reports an
+      // empty/expired token as "Failed to initialize player". If auth is
+      // unavailable (expired + refresh failed), skip in-app playback quietly —
+      // the REST fallback still controls the active Spotify device.
+      const token = await getValidAccessToken();
+      if (!token) {
+        isConnecting.current = false;
+        return;
+      }
+
       if (playerRef.current) {
         try {
           playerRef.current.disconnect();
@@ -335,14 +350,17 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
         name: "Vinylify Web Player",
         getOAuthToken: async (cb) => {
           try {
-            const token = await getValidAccessToken();
-            if (token) {
-              cb(token);
-            } else {
-              console.warn("No valid Spotify token available for player");
+            let result = await getValidAccessToken();
+            if (!result) {
+              // The SDK requests tokens lazily; a refresh may still be in
+              // flight, so give it one more beat before giving the SDK an
+              // empty token (which surfaces as an init failure).
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              result = await getValidAccessToken();
             }
+            cb(result ?? "");
           } catch {
-            console.warn("Failed to get token for Spotify player");
+            cb("");
           }
         },
         volume: 0.7,
@@ -366,6 +384,13 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
           reconnectAttempts.current = 0;
           isConnecting.current = false;
 
+          playerRef.current
+            ?.getVolume()
+            .then((vol) =>
+              setState((prev) => ({ ...prev, volume: vol, muted: vol === 0 }))
+            )
+            .catch(() => {});
+
           // Make Vinylify's own player the active Spotify device and register
           // the instant in-browser transport path used by lib/spotify.
           setActiveDeviceId(device_id);
@@ -380,20 +405,19 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
       player.addListener(
         "initialization_error",
         ({ message }: { message: string }) => {
-          console.error("Spotify SDK initialization error:", message);
+          console.warn("Spotify SDK initialization error:", message);
           setState((prev) => ({
             ...prev,
             error: "Player initialization failed",
           }));
           isConnecting.current = false;
-          scheduleReconnect();
         }
       );
 
       player.addListener(
         "authentication_error",
         ({ message }: { message: string }) => {
-          console.error("Spotify SDK authentication error:", message);
+          console.warn("Spotify SDK authentication error:", message);
           setPlayerReady(false);
           registerSdkControl(null, null);
           setState((prev) => ({
@@ -407,7 +431,7 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
       player.addListener(
         "account_error",
         ({ message }: { message: string }) => {
-          console.error("Spotify SDK account error:", message);
+          console.warn("Spotify SDK account error:", message);
           setState((prev) => ({
             ...prev,
             error: "Spotify Premium is required for in-app playback",
@@ -419,7 +443,7 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
       player.addListener(
         "playback_error",
         ({ message }: { message: string }) => {
-          console.error("Spotify SDK playback error:", message);
+          console.warn("Spotify SDK playback error:", message);
           setState((prev) => ({
             ...prev,
             error: "Playback error. Retrying...",
@@ -463,12 +487,16 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
     };
   }, [stopProgressTimer]);
 
-  const applyVolumeToSDK = useCallback((v: number) => {
-    playerRef.current?.setVolume(Math.min(1, Math.max(0, v))).catch(() => {});
+  const applyVolume = useCallback((v: number) => {
+    // Route through lib/spotify.setVolume: it uses the SDK fast-path when the
+    // SDK player is the active device, and otherwise falls back to the REST
+    // API — so the volume slider/mute work even without an SDK connection
+    // (e.g. free accounts controlling an external Spotify device).
+    void setRestVolume(Math.round(v * 100));
   }, []);
 
-  // Debounced volume: update UI immediately, flush the SDK call after a pause
-  // so rapid slider input doesn't spam the SDK.
+  // Debounced volume: update UI immediately, flush the volume call after a
+  // pause so rapid slider input doesn't spam the API.
   const setVolume = useCallback(
     (v: number) => {
       setState((prev) => ({ ...prev, volume: v, muted: v === 0 }));
@@ -476,28 +504,35 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
         clearTimeout(volumeDebounceRef.current);
       }
       volumeDebounceRef.current = setTimeout(() => {
-        applyVolumeToSDK(v);
         volumeDebounceRef.current = null;
+        applyVolume(v);
       }, 250);
     },
-    [applyVolumeToSDK]
+    [applyVolume]
   );
+
+  // Mirrors volume from the REST playback state (non-SDK path) without
+  // issuing an API write.
+  const syncVolume = useCallback((volumePercent: number) => {
+    const v = Math.max(0, Math.min(100, volumePercent)) / 100;
+    setState((prev) => ({ ...prev, volume: v, muted: v === 0 }));
+  }, []);
 
   const toggleMute = useCallback(() => {
     setState((prev) => {
       if (prev.muted) {
         // unmute -> restore previous volume
         const restore = prevVolumeRef.current ?? 0.7;
-        applyVolumeToSDK(restore);
         prevVolumeRef.current = null;
+        applyVolume(restore);
         return { ...prev, volume: restore, muted: false };
       }
       // mute -> store current then go to 0
       prevVolumeRef.current = prev.volume > 0 ? prev.volume : 0.7;
-      applyVolumeToSDK(0);
+      applyVolume(0);
       return { ...prev, volume: 0, muted: true };
     });
-  }, [applyVolumeToSDK]);
+  }, [applyVolume]);
 
   useEffect(() => {
     return () => {
@@ -514,5 +549,6 @@ export function useSpotifyPlayer(): UseSpotifyPlayerReturn {
     connect,
     setVolume,
     toggleMute,
+    syncVolume,
   };
 }

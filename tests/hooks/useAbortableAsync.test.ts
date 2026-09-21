@@ -14,6 +14,7 @@ describe("useAbortableAsync", () => {
     // The asyncFn deliberately ignores abort and still resolves, so the first
     // in-flight call settles and is detected as stale via the requestId guard.
     const asyncFn = vi.fn(async (val: number, _signal: AbortSignal) => {
+      void _signal;
       return new Promise<number>((resolve) => {
         setTimeout(() => {
           resolve(val * 10);

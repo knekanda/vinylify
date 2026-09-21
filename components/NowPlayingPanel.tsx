@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { memo, useEffect, useState, useRef, useCallback } from "react";
 import {
   CloseIcon,
   DeviceIcon,
@@ -21,15 +21,19 @@ import {
   seekTo,
   setRepeat,
   setShuffle,
-  saveTrack,
-  removeTrack,
-  checkSavedTracks,
   getAvailableDevices,
   transferPlayback,
   playTrack,
+  normalizeEntityId,
 } from "../lib/spotify";
 import { useQueueData } from "../hooks/useQueueData";
-import type { SpotifyDevice, SpotifyTrack } from "../types/spotify";
+import { useSavedTracks } from "../hooks/SavedTracksContext";
+import type {
+  SpotifyArtist,
+  SpotifyAlbum,
+  SpotifyDevice,
+  SpotifyTrack,
+} from "../types/spotify";
 
 function formatDuration(ms: number) {
   if (!ms || ms < 0) return "0:00";
@@ -47,10 +51,12 @@ type Props = {
   shuffle: boolean;
   repeat: string;
   onClose: () => void;
-  onOpenQueue?: () => void;
+  onNotice?: (msg: string) => void;
+  onSelectArtist?: (a: SpotifyArtist) => void;
+  onSelectAlbum?: (a: SpotifyAlbum) => void;
 };
 
-export default function NowPlayingPanel({
+const NowPlayingPanel = memo(function NowPlayingPanel({
   track,
   isPlaying,
   progressMs: progressMsProp,
@@ -58,9 +64,12 @@ export default function NowPlayingPanel({
   shuffle,
   repeat,
   onClose,
+  onNotice,
+  onSelectArtist,
+  onSelectAlbum,
 }: Props) {
+  const { isSaved: isTrackSaved, toggleSaved } = useSavedTracks();
   const [saving, setSaving] = useState<string | null>(null);
-  const [likedTracks, setLikedTracks] = useState<Set<string>>(new Set());
   const [progressMs, setProgressMs] = useState(progressMsProp);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPosition, setSeekPosition] = useState(0);
@@ -95,24 +104,7 @@ export default function NowPlayingPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose, queueDrawer]);
 
-  // Hydrate liked state when track changes
-  useEffect(() => {
-    if (!track) return;
-    let cancelled = false;
-    checkSavedTracks([track.id]).then((result) => {
-      if (cancelled) return;
-      if (result[0]) {
-        setLikedTracks((prev) => new Set(prev).add(track.id));
-      } else {
-        setLikedTracks((prev) => {
-          const next = new Set(prev);
-          next.delete(track.id);
-          return next;
-        });
-      }
-    });
-    return () => { cancelled = true; };
-  }, [track?.id]);
+  // Hydrate liked state via the shared SavedTracks store (ContentGrid loads it).
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -144,37 +136,21 @@ export default function NowPlayingPanel({
   const handleSaveTrack = useCallback(async () => {
     if (!track) return;
     const trackId = track.id;
+    if (!trackId) {
+      onNotice?.("Cannot save local track");
+      return;
+    }
 
     setSaving(trackId);
 
-    if (likedTracks.has(trackId)) {
-      setLikedTracks((prev) => {
-        const next = new Set(prev);
-        next.delete(trackId);
-        return next;
-      });
+    const result = await toggleSaved(trackId);
 
-      const result = await removeTrack(trackId);
-
-      if (!result.ok) {
-        setLikedTracks((prev) => new Set(prev).add(trackId));
-      }
-    } else {
-      setLikedTracks((prev) => new Set(prev).add(trackId));
-
-      const result = await saveTrack(trackId);
-
-      if (!result.ok) {
-        setLikedTracks((prev) => {
-          const next = new Set(prev);
-          next.delete(trackId);
-          return next;
-        });
-      }
+    if (!result.ok) {
+      onNotice?.("Could not update Library");
     }
 
     setTimeout(() => setSaving(null), 600);
-  }, [track, likedTracks]);
+  }, [track, toggleSaved, onNotice]);
 
   const handleToggleShuffle = useCallback(async () => {
     await setShuffle(!shuffle);
@@ -295,8 +271,15 @@ export default function NowPlayingPanel({
 
   const albumImageUrl = track?.album?.images?.[0]?.url;
   const albumYear = track?.album?.release_date?.slice(0, 4);
+  const firstArtist = track?.artists?.[0];
+  const canSelectArtist = Boolean(
+    firstArtist && onSelectArtist && normalizeEntityId(firstArtist.id)
+  );
+  const canSelectAlbum = Boolean(
+    track?.album && onSelectAlbum && normalizeEntityId(track.album.id)
+  );
   const trackArtists = track?.artists?.map((a) => a.name).join(", ") || "—";
-  const isSaved = likedTracks.has(track?.id || "");
+  const isSaved = isTrackSaved(track?.id || "");
 
   // Queue split: the first entry is usually the current track.
   const nextInQueue = queue.filter((t) => t.id !== track?.id);
@@ -405,11 +388,28 @@ export default function NowPlayingPanel({
               {track?.name || "Not Playing"}
             </h2>
             <p className="mt-1.5 truncate text-lg text-[var(--color-text-secondary)]">
-              {trackArtists}
+              {canSelectArtist ? (
+                <button
+                  onClick={() => onSelectArtist!(firstArtist!)}
+                  className="hover:text-[var(--color-text-primary)] hover:underline"
+                >
+                  {firstArtist!.name}
+                </button>
+              ) : (
+                trackArtists
+              )}
+              {canSelectArtist && (track?.artists?.length ?? 0) > 1
+                ? `, ${track!.artists!.slice(1).map((a) => a.name).join(", ")}`
+                : ""}
             </p>
-            {track && (
+            {track && canSelectAlbum && (
               <p className="mt-1 truncate text-sm text-[var(--color-text-tertiary)]">
-                {track.album?.name}{albumYear ? ` · ${albumYear}` : ""}
+                <button
+                  onClick={() => onSelectAlbum!(track.album!)}
+                  className="hover:text-[var(--color-text-secondary)] hover:underline"
+                >
+                  {track.album?.name}{albumYear ? ` · ${albumYear}` : ""}
+                </button>
               </p>
             )}
           </div>
@@ -646,7 +646,9 @@ export default function NowPlayingPanel({
       )}
     </div>
   );
-}
+});
+
+export default NowPlayingPanel;
 
 // Set the current active device id from playback state (used by the device menu).
 async function getPlaybackStateForDevice(): Promise<{ id: string } | null> {

@@ -5,6 +5,7 @@ import { vi } from "vitest";
 describe("useSearch", () => {
   it("clears results for empty query and ignores stale responses", async () => {
     const fetcher = vi.fn(async (q: string, signal: AbortSignal) => {
+      void signal;
       return new Promise((resolve) => {
         setTimeout(() => {
           resolve({ q, ts: Date.now() });

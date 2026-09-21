@@ -1,128 +1,175 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+let exchangePromise: Promise<boolean> | null = null;
+
+function safeGetItem(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // storage full or blocked — silently continue
+  }
+}
+
+function safeRemoveItem(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // silently continue
+  }
+}
+
+async function consumeAuthorizationCode(
+  setStatus: (value: string) => void
+): Promise<boolean> {
+  const params = new URLSearchParams(window.location.search);
+
+  const code = params.get("code");
+  const state = params.get("state");
+  const error = params.get("error");
+
+  if (error) {
+    setStatus(`Spotify authorization failed: ${error}`);
+    return false;
+  }
+
+  if (!code || !state) {
+    setStatus("Missing authorization information.");
+    return false;
+  }
+
+  const savedState = safeGetItem("spotify_state");
+  const codeVerifier = safeGetItem("spotify_code_verifier");
+
+  if (!savedState || state !== savedState) {
+    setStatus("Security check failed. Please try connecting again.");
+    return false;
+  }
+
+  if (!codeVerifier) {
+    setStatus("Missing PKCE code verifier. Please try connecting again.");
+    return false;
+  }
+
+  const controller = new AbortController();
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, 15000);
+
+  try {
+    const response = await fetch("/api/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        code,
+        code_verifier: codeVerifier,
+        redirect_uri: `${window.location.origin}/callback`,
+      }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("Spotify token exchange failed:", data);
+      if (data.error === "invalid_grant") {
+        setStatus(
+          "This connection link has expired. Please try connecting again."
+        );
+      } else {
+        setStatus(
+          `Spotify error: ${data.error_description || data.error || "Unknown error"}`
+        );
+      }
+      return false;
+    }
+
+    safeSetItem("spotify_access_token", data.access_token);
+
+    if (data.expires_in) {
+      safeSetItem(
+        "spotify_token_expires_at",
+        (Date.now() + data.expires_in * 1000).toString()
+      );
+    }
+
+    if (data.refresh_token) {
+      safeSetItem("spotify_refresh_token", data.refresh_token);
+    }
+
+    safeRemoveItem("spotify_state");
+    safeRemoveItem("spotify_code_verifier");
+
+    return true;
+  } catch (error) {
+    console.error(error);
+
+    if (error instanceof DOMException && error.name === "AbortError") {
+      setStatus("Connection timed out. Please check your network and try again.");
+    } else {
+      setStatus("Something went wrong connecting to Spotify.");
+    }
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export default function CallbackPage() {
   const router = useRouter();
-  const processedRef = useRef(false);
 
   const [status, setStatus] = useState("Connecting to Spotify...");
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    if (processedRef.current) return;
-    processedRef.current = true;
-
     let cancelled = false;
 
-    async function handleCallback() {
-      const params = new URLSearchParams(window.location.search);
-
-      const code = params.get("code");
-      const state = params.get("state");
-      const error = params.get("error");
-
-      if (error) {
-        if (!cancelled) setStatus(`Spotify authorization failed: ${error}`);
-        return;
-      }
-
-      if (!code || !state) {
-        if (!cancelled) setStatus("Missing authorization information.");
-        return;
-      }
-
-      const savedState = localStorage.getItem("spotify_state");
-      const codeVerifier = localStorage.getItem("spotify_code_verifier");
-
-      if (!savedState || state !== savedState) {
-        if (!cancelled) setStatus("Security check failed. Please try connecting again.");
-        return;
-      }
-
-      if (!codeVerifier) {
-        if (!cancelled) setStatus("Missing PKCE code verifier. Please try connecting again.");
-        return;
-      }
-
-      const controller = new AbortController();
-
-      const timeout = setTimeout(() => {
-        controller.abort();
-      }, 15000);
-
-      try {
-        const response = await fetch("/api/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            code,
-            code_verifier: codeVerifier,
-          }),
-          signal: controller.signal,
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          console.error("Spotify token exchange failed:", data);
-          if (!cancelled) {
-            setStatus(
-              `Spotify error: ${data.error_description || data.error || "Unknown error"}`
-            );
-          }
-          return;
-        }
-
-        localStorage.setItem("spotify_access_token", data.access_token);
-
-        if (data.expires_in) {
-          localStorage.setItem(
-            "spotify_token_expires_at",
-            (Date.now() + data.expires_in * 1000).toString()
-          );
-        }
-
-        if (data.refresh_token) {
-          localStorage.setItem("spotify_refresh_token", data.refresh_token);
-        }
-
-        localStorage.removeItem("spotify_state");
-        localStorage.removeItem("spotify_code_verifier");
-
-        if (!cancelled) {
-          setStatus("Spotify connected!");
-          setProgress(100);
-        }
-
-        setTimeout(() => {
-          if (!cancelled) router.push("/");
-        }, 1000);
-      } catch (error) {
-        console.error(error);
-
-        if (!cancelled) {
-          if (error instanceof DOMException && error.name === "AbortError") {
-            setStatus("Connection timed out. Please check your network and try again.");
-          } else {
-            setStatus("Something went wrong connecting to Spotify.");
-          }
-        }
-      } finally {
-        clearTimeout(timeout);
-      }
+    // Already authenticated — clean up PKCE artifacts and go home immediately.
+    // No state update here: this view unmounts right away.
+    if (safeGetItem("spotify_access_token")) {
+      safeRemoveItem("spotify_state");
+      safeRemoveItem("spotify_code_verifier");
+      router.replace("/");
+      return;
     }
 
-    handleCallback();
+    // If an exchange is already in flight (React StrictMode double-mount or
+    // an HMR re-render), don't start a second one — wait for it and redirect
+    // once it succeeds.
+    if (!exchangePromise) {
+      exchangePromise = Promise.resolve()
+        .then(() => consumeAuthorizationCode(setStatus))
+        .finally(() => {
+          exchangePromise = null;
+        });
+    }
+
+    exchangePromise.then((success) => {
+      if (cancelled) return;
+      if (success) {
+        setStatus("Spotify connected!");
+        setProgress(100);
+        router.replace("/");
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [router]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-6">

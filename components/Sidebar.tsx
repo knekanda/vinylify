@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import {
   HomeIcon,
   LibraryIcon,
@@ -13,15 +14,17 @@ type Props = {
   connected: boolean;
   view: "home" | "search" | "playlist" | "artist" | "album" | "liked";
   playlists: SpotifyPlaylist[];
+  activePlaylistId?: string | null;
   onSelectView: (view: "home" | "search") => void;
   onSelectPlaylist: (playlist: SpotifyPlaylist) => void;
   onSelectLiked: () => void;
 };
 
-export default function Sidebar({
+const Sidebar = memo(function Sidebar({
   connected,
   view,
   playlists,
+  activePlaylistId,
   onSelectView,
   onSelectPlaylist,
   onSelectLiked,
@@ -94,7 +97,11 @@ export default function Sidebar({
                 <button
                   key={playlist.id}
                   onClick={() => onSelectPlaylist(playlist)}
-                  className="group flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors duration-fast hover:bg-[var(--color-surface-interactive)] animate-fade-in"
+                  className={`group flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors duration-fast hover:bg-[var(--color-surface-interactive)] animate-fade-in ${
+                    view === "playlist" && playlist.id === activePlaylistId
+                      ? "bg-[var(--color-surface-interactive)]"
+                      : ""
+                  }`}
                   style={{ animationDelay: `${i * 20}ms` }}
                 >
                   {cover ? (
@@ -137,4 +144,6 @@ export default function Sidebar({
       </div>
     </aside>
   );
-}
+});
+
+export default Sidebar;

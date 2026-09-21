@@ -24,9 +24,16 @@ export function useSearch<T = unknown>(fetcher?: (q: string, signal: AbortSignal
 
   const actualFetcher = fetcher ?? defaultFetcher;
 
-  const { run, abort } = useAbortableAsync(async (q: string, signal: AbortSignal) => {
-    return actualFetcher(q, signal);
-  });
+  // Keep the async fn identity stable (it feeds useAbortableAsync.run, whose
+  // output is a debounce dependency in callers). An inline arrow here would be
+  // recreated every render, making `run` unstable and resetting debounce
+  // timers on each unrelated re-render (e.g. progress updates while playing).
+  const asyncFn = useCallback(
+    (q: string, signal: AbortSignal) => actualFetcher(q, signal),
+    [actualFetcher]
+  );
+
+  const { run, abort } = useAbortableAsync(asyncFn);
 
   const runSearch = useCallback(
     async (q: string) => {

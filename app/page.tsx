@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import TopBar from "../components/TopBar";
 import ContentGrid from "../components/ContentGrid";
+import FreeTierBanner from "../components/FreeTierBanner";
 import PlayerBar from "../components/PlayerBar";
 import NowPlayingPanel from "../components/NowPlayingPanel";
 import Image from "next/image";
@@ -11,6 +12,8 @@ import QueuePanel from "../components/QueuePanel";
 import { useSpotifyPlayer } from "../hooks/useSpotifyPlayer";
 import { useMediaSession } from "../hooks/useMediaSession";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import { useSearch } from "../hooks/useSearch";
+import { SavedTracksProvider } from "../hooks/SavedTracksContext";
 import {
   fetchPlaylistTracks,
   fetchRecentlyPlayed,
@@ -20,12 +23,14 @@ import {
   fetchUserProfile,
   fetchPlaybackState,
   fetchAllLikedTracks,
-  getArtistTopTracks,
-  getAlbumTracks,
   getAlbum,
+  getAlbumTracks,
+  getArtistTopTracks,
+  getTrack,
+  hasAccessToken,
+  normalizeEntityId,
   playContext,
   playTrack,
-  searchTracks,
 } from "../lib/spotify";
 import type {
   SpotifyAlbum,
@@ -49,7 +54,7 @@ export default function Home() {
 
   const [view, setView] = useState<View>("home");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SpotifyTrack[]>([]);
+  const search = useSearch<SpotifyTrack[]>();
   const [selectedPlaylist, setSelectedPlaylist] =
     useState<SpotifyPlaylist | null>(null);
   const [playlistTracks, setPlaylistTracks] = useState<SpotifyTrack[]>([]);
@@ -83,6 +88,8 @@ export default function Home() {
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const sdk = useSpotifyPlayer();
+  const sdkConnect = sdk.connect;
+  const sdkPlayerReady = sdk.playerReady;
 
   // Media Session — OS-level media controls
   const handlePlayPause = useCallback(async () => {
@@ -148,6 +155,17 @@ export default function Home() {
     onPrevious: handlePrevious,
   });
 
+  // Escape dismisses any open side panels first.
+  const handleEscape = useCallback(() => {
+    if (nowPlayingOpen) {
+      setNowPlayingOpen(false);
+      return;
+    }
+    if (queueOpen) {
+      setQueueOpen(false);
+    }
+  }, [nowPlayingOpen, queueOpen]);
+
   useKeyboardShortcuts({
     onPlayPause: handlePlayPause,
     onNext: handleNext,
@@ -156,64 +174,70 @@ export default function Home() {
     onSearchFocus: handleSearchFocus,
     onSeek: handleSeek,
     onVolume: handleVolumeDelta,
+    onEscape: handleEscape,
   });
 
   // Auth + data loading
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const mountedRef = useRef(true);
+  const loadHome = useCallback(async () => {
+    if (!hasAccessToken()) return;
 
-    if (!localStorage.getItem("spotify_access_token")) return;
+    setHomeStatus("loading");
 
-    let cancelled = false;
+    try {
+      const profile = await fetchUserProfile();
 
-    void (async () => {
-      setHomeStatus("loading");
+      if (!mountedRef.current) return;
 
-      try {
-        const profile = await fetchUserProfile();
-
-        if (cancelled) return;
-
+      if (profile) {
+        setUser(profile);
         setConnected(true);
-
-        if (profile) setUser(profile);
-        else {
-          setHomeStatus("error");
-          return;
-        }
-
-        const [playlistItems, artistItems, trackItems, recentItems] =
-          await Promise.all([
-            fetchUserPlaylists(),
-            fetchTopArtists(),
-            fetchTopTracks(),
-            fetchRecentlyPlayed(),
-          ]);
-
-        if (cancelled) return;
-
-        setPlaylists(playlistItems);
-        setTopArtists(artistItems);
-        setTopTracks(trackItems);
-        setRecent(recentItems);
-        setHomeStatus("ready");
-      } catch (error) {
-        console.error("Failed to load Spotify data:", error);
-        if (!cancelled) setHomeStatus("error");
+      } else {
+        // Token present but Spotify rejected it — surface a recovery path
+        // (the hero/Connect state) instead of a stuck connected screen.
+        setHomeStatus("error");
+        return;
       }
-    })();
 
-    return () => {
-      cancelled = true;
-    };
+      const [playlistItems, artistItems, trackItems, recentItems] =
+        await Promise.all([
+          fetchUserPlaylists(),
+          fetchTopArtists(),
+          fetchTopTracks(),
+          fetchRecentlyPlayed(),
+        ]);
+
+      if (!mountedRef.current) return;
+
+      setPlaylists(playlistItems);
+      setTopArtists(artistItems);
+      setTopTracks(trackItems);
+      setRecent(recentItems);
+      setHomeStatus("ready");
+    } catch (error) {
+      console.error("Failed to load Spotify data:", error);
+      if (mountedRef.current) setHomeStatus("error");
+    }
   }, []);
 
-  // Connect SDK when authenticated
   useEffect(() => {
-    if (connected && !sdk.playerReady) {
-      sdk.connect();
+    mountedRef.current = true;
+    if (typeof window !== "undefined" && hasAccessToken()) {
+      queueMicrotask(() => void loadHome());
     }
-  }, [connected, sdk.playerReady, sdk.connect]);
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [loadHome]);
+
+  // Connect SDK when authenticated. In-app playback requires a Premium
+  // account; non-Premium users use the active-device REST path instead.
+  useEffect(() => {
+    if (connected && user?.product !== "premium") return;
+    if (connected && !sdkPlayerReady) {
+      sdkConnect();
+    }
+  }, [connected, user?.product, sdkPlayerReady, sdkConnect]);
 
   // Sync SDK state to page state
   useEffect(() => {
@@ -228,6 +252,33 @@ export default function Home() {
       setDurationMs(s.durationMs);
     });
   }, [sdk.playerReady, sdk.state]);
+
+  // The Web SDK exposes artists only with empty ids and album ids as URIs.
+  // Fetch the real REST track so artist/album click-through navigation works
+  // even while playback is SDK-driven.
+  useEffect(() => {
+    const track = sdk.state.track;
+    if (!(sdk.playerReady && track?.id)) return;
+
+    let cancelled = false;
+
+    void getTrack(track.id)
+      .then((full) => {
+        if (!cancelled && full && full.id === track.id) {
+          setCurrentTrack((prev) =>
+            prev && prev.id === full.id
+              ? { ...prev, artists: full.artists, album: full.album }
+              : prev
+          );
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sdk.playerReady, sdk.state.track?.id]);
 
   // API polling fallback (non-SDK)
   useEffect(() => {
@@ -244,9 +295,12 @@ export default function Home() {
       }
       setIsPlaying(Boolean(state?.is_playing));
       if (state?.shuffle_state !== undefined) setShuffle(state.shuffle_state);
-      if (state?.repeat_state) setRepeat(state.repeat_state);
+      if (state?.repeat_state !== undefined) setRepeat(state.repeat_state);
       if (state?.progress_ms !== undefined) setProgressMs(state.progress_ms);
       if (state?.item?.duration_ms) setDurationMs(state.item.duration_ms);
+      if (state?.device?.volume_percent !== undefined) {
+        sdk.syncVolume(state.device.volume_percent);
+      }
     }
 
     pollPlayback();
@@ -256,6 +310,7 @@ export default function Home() {
       cancelled = true;
       clearInterval(interval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, sdk.playerReady]);
 
   // Progress timer for non-SDK path
@@ -267,8 +322,8 @@ export default function Home() {
 
     if (isPlaying && !sdk.playerReady) {
       progressInterval.current = setInterval(() => {
-        setProgressMs((prev) => Math.min(prev + 250, durationMs));
-      }, 250);
+        setProgressMs((prev) => Math.min(prev + 1000, durationMs));
+      }, 1000);
     }
 
     return () => {
@@ -276,87 +331,121 @@ export default function Home() {
     };
   }, [isPlaying, durationMs, sdk.playerReady]);
 
-  // Search debounced
-  useEffect(() => {
-    if (!connected || !searchQuery.trim() || view !== "search") return;
+  // Search debounced (aborts in-flight requests so a slow old query can never
+  // overwrite a newer one).
+  const runSearch = search.run;
+  const cancelSearch = search.cancel;
 
-    const timer = setTimeout(async () => {
-      setSearchResults(await searchTracks(searchQuery));
+  useEffect(() => {
+    if (!connected || view !== "search" || !searchQuery.trim()) return;
+
+    const timer = setTimeout(() => {
+      runSearch(searchQuery);
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, view, connected]);
+  }, [searchQuery, view, connected, runSearch, cancelSearch]);
 
-  function showNotice(message: string) {
+  const showNotice = useCallback((message: string) => {
     setNotice(message);
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
     noticeTimer.current = window.setTimeout(() => setNotice(null), 3500);
-  }
+  }, []);
 
-  function handleSearchChange(query: string) {
+  const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
     if (query.trim()) {
       setView("search");
     } else {
       setView("home");
     }
-  }
+  }, []);
 
-  function handleBack() {
+  const handleBack = useCallback(() => {
     setView("home");
     setSearchQuery("");
-  }
+  }, []);
 
-  async function handleSelectPlaylist(playlist: SpotifyPlaylist) {
+  const handleSelectView = useCallback((v: View) => {
+    setView(v);
+    setSearchQuery("");
+  }, []);
+
+  const handleSelectPlaylist = useCallback(async (playlist: SpotifyPlaylist) => {
     setSelectedPlaylist(playlist);
     setView("playlist");
     const tracks = await fetchPlaylistTracks(playlist.id);
     setPlaylistTracks(tracks);
-  }
+  }, []);
 
-  async function handlePlayTrack(track: SpotifyTrack) {
-    setCurrentTrack(track);
-    setIsPlaying(true);
+  const handlePlayTrack = useCallback(
+    async (track: SpotifyTrack) => {
+      setCurrentTrack(track);
+      setIsPlaying(true);
 
-    const result = await playTrack(track.uri);
-    if (!result.ok) {
-      showNotice(result.message || "Could not start playback");
-      // Only revert the optimistic state if nothing is actually playing.
-      const live = await fetchPlaybackState();
-      if (!live?.item) {
-        setCurrentTrack(null);
-        setIsPlaying(false);
+      const result = await playTrack(track.uri);
+      if (!result.ok) {
+        showNotice(result.message || "Could not start playback");
+        // Only revert the optimistic state if nothing is actually playing.
+        const live = await fetchPlaybackState();
+        if (!live?.item) {
+          setCurrentTrack(null);
+          setIsPlaying(false);
+        }
+      } else if (user && user.product !== "premium") {
+        showNotice("Playing on your active Spotify device (in-app playback requires Premium)");
       }
+    },
+    [user, showNotice]
+  );
+
+  const handlePlayContext = useCallback(
+    async (contextUri: string) => {
+      const result = await playContext(contextUri);
+      if (!result.ok && result.message) {
+        showNotice(result.message);
+      } else if (result.ok && user && user.product !== "premium") {
+        showNotice("Playing on your active Spotify device (in-app playback requires Premium)");
+      }
+    },
+    [user, showNotice]
+  );
+
+  const handleSelectArtist = useCallback(async (artist: SpotifyArtist) => {
+    const artistId = normalizeEntityId(artist.id);
+    if (!artistId) {
+      showNotice("Could not open this artist");
+      return;
     }
-  }
-
-  async function handlePlayContext(contextUri: string) {
-    const result = await playContext(contextUri);
-    if (!result.ok && result.message) showNotice(result.message);
-  }
-
-  async function handleSelectArtist(artist: SpotifyArtist) {
     setSelectedArtist(artist);
     setView("artist");
-    const tracks = await getArtistTopTracks(artist.id);
+    const tracks = await getArtistTopTracks(artistId);
     setArtistTracks(tracks);
-  }
+  }, [showNotice]);
 
-  async function handleSelectAlbum(album: SpotifyAlbum) {
+  const handleSelectAlbum = useCallback(async (album: SpotifyAlbum) => {
+    const albumId = normalizeEntityId(album.id);
+    if (!albumId) {
+      showNotice("Could not open this album");
+      return;
+    }
     setSelectedAlbum(album);
     setView("album");
-    const tracks = await getAlbumTracks(album.id);
-    const albumInfo = await getAlbum(album.id);
+    const tracks = await getAlbumTracks(albumId);
+    const albumInfo = await getAlbum(albumId);
+    // Enrich the hero with the full album object (release date, cover, etc.) —
+    // the object we clicked is the simplified one attached to a track.
     if (albumInfo) {
-      setAlbumTracks(
-        tracks.map((t) => ({ ...t, album: albumInfo }))
-      );
-    } else {
-      setAlbumTracks(tracks);
+      setSelectedAlbum((prev) => ({ ...(prev || {}), ...albumInfo }));
     }
-  }
+    setAlbumTracks(
+      albumInfo
+        ? tracks.map((t) => ({ ...t, album: albumInfo }))
+        : tracks
+    );
+  }, [showNotice]);
 
-  async function handleSelectLiked() {
+  const handleSelectLiked = useCallback(async () => {
     setView("liked");
 
     if (likedCacheRef.current) {
@@ -391,19 +480,31 @@ export default function Home() {
     setLikedTotal(result.total);
     setLikedLoaded(result.tracks.length);
     setLikedStatus("ready");
-  }
+  }, []);
 
-  function handleRefreshLiked() {
+  const handleRefreshLiked = useCallback(() => {
     likedCacheRef.current = null;
     setLikedStatus("idle");
     likedLoadingRef.current = false;
     void handleSelectLiked();
-  }
+  }, [handleSelectLiked]);
+
+  const handleRemoveLikedTrack = useCallback((trackId: string) => {
+    setLikedTracks((prev) => prev.filter((t) => t.id !== trackId));
+    setLikedTotal((prev) => Math.max(0, prev - 1));
+    if (likedCacheRef.current) {
+      likedCacheRef.current = {
+        tracks: likedCacheRef.current.tracks.filter((t) => t.id !== trackId),
+        total: Math.max(0, likedCacheRef.current.total - 1),
+      };
+    }
+  }, []);
 
   const albumImageUrl = currentTrack?.album?.images?.[0]?.url;
 
   return (
-    <div className="relative flex h-screen flex-col bg-[var(--color-bg)] text-[var(--color-text-primary)] overflow-hidden">
+    <SavedTracksProvider>
+      <div className="relative flex h-screen flex-col bg-[var(--color-bg)] text-[var(--color-text-primary)] overflow-hidden">
       {/* Dynamic Background */}
       <div className="dynamic-bg" aria-hidden="true">
         {albumImageUrl ? (
@@ -411,8 +512,8 @@ export default function Home() {
             key={albumImageUrl}
             src={albumImageUrl}
             alt=""
-            width={1600}
-            height={900}
+            width={480}
+            height={480}
             className="dynamic-bg-image"
             aria-hidden="true"
           />
@@ -428,10 +529,10 @@ export default function Home() {
           connected={connected}
           view={view}
           playlists={playlists}
-          onSelectView={(v) => {
-            setView(v);
-            setSearchQuery("");
-          }}
+          activePlaylistId={
+            view === "playlist" ? selectedPlaylist?.id ?? null : null
+          }
+          onSelectView={handleSelectView}
           onSelectPlaylist={handleSelectPlaylist}
           onSelectLiked={handleSelectLiked}
         />
@@ -445,6 +546,10 @@ export default function Home() {
             onSearchChange={handleSearchChange}
             onBack={handleBack}
           />
+
+          {connected && user && user.product !== "premium" && (
+            <FreeTierBanner user={user} />
+          )}
 
           {/* Content area */}
           <div className="flex min-h-0 flex-1">
@@ -460,7 +565,8 @@ export default function Home() {
               recent={recent}
               selectedPlaylist={selectedPlaylist}
               playlistTracks={playlistTracks}
-              searchResults={searchResults}
+              searchResults={search.data ?? []}
+              searchLoading={search.loading}
               selectedArtist={selectedArtist}
               artistTracks={artistTracks}
               selectedAlbum={selectedAlbum}
@@ -470,6 +576,7 @@ export default function Home() {
               likedLoaded={likedLoaded}
               likedTotal={likedTotal}
               onRefreshLiked={handleRefreshLiked}
+              onRemoveLikedTrack={handleRemoveLikedTrack}
               currentTrack={currentTrack}
               isPlaying={isPlaying}
               onSelectPlaylist={handleSelectPlaylist}
@@ -478,6 +585,7 @@ export default function Home() {
               onSelectArtist={handleSelectArtist}
               onSelectAlbum={handleSelectAlbum}
               onNotice={showNotice}
+              onRetryHome={loadHome}
             />
 
             {nowPlayingOpen && (
@@ -489,9 +597,14 @@ export default function Home() {
                 shuffle={shuffle}
                 repeat={repeat}
                 onClose={() => setNowPlayingOpen(false)}
-                onOpenQueue={() => {
+                onNotice={showNotice}
+                onSelectArtist={(artist) => {
                   setNowPlayingOpen(false);
-                  setQueueOpen(true);
+                  void handleSelectArtist(artist);
+                }}
+                onSelectAlbum={(album) => {
+                  setNowPlayingOpen(false);
+                  void handleSelectAlbum(album);
                 }}
               />
             )}
@@ -522,8 +635,15 @@ export default function Home() {
         onToggleQueue={() => setQueueOpen((open) => !open)}
         notice={notice}
         showNotice={showNotice}
+        volume={Math.round((sdk.state.volume ?? 0.7) * 100)}
+        muted={sdk.state.muted}
+        onVolumeChange={(v) => sdk.setVolume(v / 100)}
+        onMuteToggle={() => sdk.toggleMute()}
+        onSelectArtist={handleSelectArtist}
+        onSelectAlbum={handleSelectAlbum}
       />
       </footer>
-    </div>
+      </div>
+    </SavedTracksProvider>
   );
 }

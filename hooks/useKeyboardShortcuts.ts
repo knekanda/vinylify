@@ -10,6 +10,7 @@ type Props = {
   onSearchFocus: () => void;
   onSeek?: (deltaMs: number) => void;
   onVolume?: (delta: number) => void;
+  onEscape?: () => void;
 };
 
 export function useKeyboardShortcuts({
@@ -20,18 +21,40 @@ export function useKeyboardShortcuts({
   onSearchFocus,
   onSeek,
   onVolume,
+  onEscape,
 }: Props) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+
       if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement
       ) {
         if (e.key === "Escape") {
-          (e.target as HTMLElement).blur();
+          (target as HTMLElement).blur();
         }
+        return;
+      }
+
+      // Close transient panels (now playing / queue) before falling through
+      // to transport shortcuts.
+      if (e.key === "Escape") {
+        if (onEscape) {
+          onEscape();
+          return;
+        }
+      }
+
+      // Let interactive elements handle Space natively (click) so we don't
+      // double-fire toggle when a button is focused.
+      if (
+        e.key === " " &&
+        target &&
+        (target.closest("button, [role='button'], a, [contenteditable='true']"))
+      ) {
         return;
       }
 
@@ -92,5 +115,5 @@ export function useKeyboardShortcuts({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onPlayPause, onNext, onPrevious, onMuteToggle, onSearchFocus, onSeek, onVolume]);
+  }, [onPlayPause, onNext, onPrevious, onMuteToggle, onSearchFocus, onSeek, onVolume, onEscape]);
 }

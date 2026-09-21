@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { memo, useEffect, useState, useCallback } from "react";
 import { CloseIcon, PauseIcon, PlayIcon } from "./icons";
 import Image from "next/image";
-import { getQueue, playTrack } from "../lib/spotify";
+import { getQueue, playTrack, removeFromQueue } from "../lib/spotify";
 import type { SpotifyTrack } from "../types/spotify";
 
 function formatDuration(ms: number) {
@@ -20,7 +20,7 @@ type Props = {
   onClose: () => void;
 };
 
-export default function QueuePanel({ currentTrack, isPlaying, onClose }: Props) {
+const QueuePanel = memo(function QueuePanel({ currentTrack, isPlaying, onClose }: Props) {
   const [queue, setQueue] = useState<SpotifyTrack[]>([]);
   const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(true);
@@ -48,6 +48,13 @@ export default function QueuePanel({ currentTrack, isPlaying, onClose }: Props) 
 
   const handlePlay = useCallback(async (track: SpotifyTrack) => {
     const result = await playTrack(track.uri);
+    if (result.ok) {
+      setQueue((prev) => prev.filter((t) => t.uri !== track.uri));
+    }
+  }, []);
+
+  const handleRemove = useCallback(async (track: SpotifyTrack) => {
+    const result = await removeFromQueue(track.uri);
     if (result.ok) {
       setQueue((prev) => prev.filter((t) => t.uri !== track.uri));
     }
@@ -164,9 +171,20 @@ export default function QueuePanel({ currentTrack, isPlaying, onClose }: Props) 
                           {track.artists?.map((a) => a.name).join(", ") || "Unknown Artist"}
                         </p>
                       </div>
-                      <span className="tabular-nums text-[13px] text-[var(--color-text-tertiary)] shrink-0">
+                      <span className="tabular-nums text-[13px] text-[var(--color-text-tertiary)] shrink-0 hidden sm:inline">
                         {formatDuration(track.duration_ms)}
                       </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemove(track);
+                        }}
+                        className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--color-text-secondary)] opacity-0 transition-opacity duration-fast group-hover:opacity-100 focus-visible:opacity-100 hover:bg-[var(--color-surface-interactive)] hover:text-[var(--color-text-primary)]"
+                        aria-label={`Remove ${track.name} from queue`}
+                        title="Remove from queue"
+                      >
+                        <CloseIcon className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -270,9 +288,20 @@ export default function QueuePanel({ currentTrack, isPlaying, onClose }: Props) 
                         {track.artists?.map((a) => a.name).join(", ") || "Unknown Artist"}
                       </p>
                     </div>
-                    <span className="tabular-nums text-[13px] text-[var(--color-text-tertiary)] shrink-0">
+                    <span className="tabular-nums text-[13px] text-[var(--color-text-tertiary)] shrink-0 hidden sm:inline">
                       {formatDuration(track.duration_ms)}
                     </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(track);
+                      }}
+                      className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-interactive)] hover:text-[var(--color-text-primary)]"
+                      aria-label={`Remove ${track.name} from queue`}
+                      title="Remove from queue"
+                    >
+                      <CloseIcon className="h-4 w-4" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -282,4 +311,6 @@ export default function QueuePanel({ currentTrack, isPlaying, onClose }: Props) 
       </div>
     </>
   );
-}
+});
+
+export default QueuePanel;

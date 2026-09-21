@@ -346,8 +346,9 @@ body {
   width: 140%;
   height: 140%;
   object-fit: cover;
-  filter: blur(100px) saturate(1.4) brightness(0.2);
+  filter: blur(72px) saturate(1.4) brightness(0.2);
   transform: scale(1.1);
+  will-change: transform;
   animation: dynamic-bg-fade 900ms var(--ease) both;
 }
 
@@ -369,6 +370,38 @@ body {
     rgba(0, 0, 0, 0.65) 40%,
     var(--color-bg) 85%
   );
+}
+
+/* ─── Equalizer (active row indicator) ─────────────────────── */
+@keyframes eq-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.eq-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 20px;
+  height: 16px;
+}
+
+.eq-bar {
+  width: 3px;
+  border-radius: 1px;
+  transform-origin: bottom;
+  animation: eq-bounce 1s ease-in-out infinite;
+}
+
+.eq-bar.paused {
+  animation-play-state: paused;
+  transform: scaleY(0.45);
+  opacity: 0.6;
 }
 
 /* ─── Album Art Shadows ──────────────────────────────────────── */

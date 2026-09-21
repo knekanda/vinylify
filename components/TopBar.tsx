@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { loginWithSpotify } from "../lib/spotify";
+import { memo, useState, useEffect, useRef } from "react";
+import { loginWithSpotify, clearAuthState } from "../lib/spotify";
 import Logo from "./Logo";
 import {
   ArrowLeftIcon,
@@ -19,7 +19,7 @@ type Props = {
   onBack: () => void;
 };
 
-export default function TopBar({
+const TopBar = memo(function TopBar({
   connected,
   user,
   searchQuery,
@@ -52,11 +52,7 @@ export default function TopBar({
   }
 
   function handleLogout() {
-    localStorage.removeItem("spotify_access_token");
-    localStorage.removeItem("spotify_refresh_token");
-    localStorage.removeItem("spotify_token_expires_at");
-    localStorage.removeItem("spotify_state");
-    localStorage.removeItem("spotify_code_verifier");
+    clearAuthState();
     window.location.reload();
   }
 
@@ -176,4 +172,6 @@ export default function TopBar({
       </div>
     </header>
   );
-}
+});
+
+export default TopBar;

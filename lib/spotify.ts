@@ -69,32 +69,52 @@ function withDeviceQuery(path: string, existingQuery?: string): string {
   return `${path}?${existingQuery ? `${existingQuery}&` : ""}${dev}`;
 }
 
-function getAccessToken(): string | null {
+function safeGetItem(key: string): string | null {
   if (typeof window === "undefined") return null;
-
-  return localStorage.getItem("spotify_access_token");
-}
-
-export async function getValidAccessToken(): Promise<string | null> {
-  if (typeof window === "undefined") return null;
-
-  const token = getAccessToken();
-  const expiresAt = localStorage.getItem("spotify_token_expires_at");
-
-  if (token) {
-    const now = Date.now();
-    const expiry = expiresAt ? parseInt(expiresAt, 10) : NaN;
-
-    if (Number.isNaN(expiry) || now < expiry - 60_000) {
-      return token;
-    }
-  }
-
-  const refreshToken = localStorage.getItem("spotify_refresh_token");
-
-  if (!refreshToken) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
     return null;
   }
+}
+
+function safeSetItem(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // storage full or blocked — silently continue
+  }
+}
+
+function safeRemoveItem(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // silently continue
+  }
+}
+
+export function clearAuthState(): void {
+  safeRemoveItem("spotify_access_token");
+  safeRemoveItem("spotify_refresh_token");
+  safeRemoveItem("spotify_token_expires_at");
+  safeRemoveItem("spotify_state");
+  safeRemoveItem("spotify_code_verifier");
+}
+
+function getAccessToken(): string | null {
+  return safeGetItem("spotify_access_token");
+}
+
+export function hasAccessToken(): boolean {
+  return Boolean(safeGetItem("spotify_access_token"));
+}
+
+async function tryRefreshToken(): Promise<string | null> {
+  const refreshToken = safeGetItem("spotify_refresh_token");
+  if (!refreshToken) return null;
 
   try {
     const response = await fetch("/api/refresh", {
@@ -106,14 +126,11 @@ export async function getValidAccessToken(): Promise<string | null> {
     const data = await response.json();
 
     if (data.access_token) {
-      localStorage.setItem("spotify_access_token", data.access_token);
+      safeSetItem("spotify_access_token", data.access_token);
 
       if (data.expires_in) {
         const newExpiresAt = Date.now() + data.expires_in * 1000;
-        localStorage.setItem(
-          "spotify_token_expires_at",
-          newExpiresAt.toString()
-        );
+        safeSetItem("spotify_token_expires_at", newExpiresAt.toString());
       }
 
       return data.access_token;
@@ -123,6 +140,24 @@ export async function getValidAccessToken(): Promise<string | null> {
   }
 
   return null;
+}
+
+export async function getValidAccessToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+
+  const token = getAccessToken();
+  const expiresAt = safeGetItem("spotify_token_expires_at");
+
+  if (token) {
+    const now = Date.now();
+    const expiry = expiresAt ? parseInt(expiresAt, 10) : NaN;
+
+    if (Number.isNaN(expiry) || now < expiry - 60_000) {
+      return token;
+    }
+  }
+
+  return tryRefreshToken();
 }
 
 export async function apiFetch<T = unknown>(
@@ -135,14 +170,33 @@ export async function apiFetch<T = unknown>(
     throw new Error("Not authenticated");
   }
 
-  const response = await fetch(`https://api.spotify.com/v1${endpoint}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
+  const makeRequest = (t: string) =>
+    fetch(`https://api.spotify.com/v1${endpoint}`, {
+      ...options,
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${t}`,
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+
+  let response = await makeRequest(token);
+
+  // Spotify reports 401 with a token we shouldn't have. Force a refresh and
+  // retry once — transparently recovering from silently-expired sessions
+  // instead of dumping the user into an error screen.
+  if (response.status === 401) {
+    safeRemoveItem("spotify_access_token");
+    safeRemoveItem("spotify_token_expires_at");
+    const fresh = await tryRefreshToken();
+    if (fresh) {
+      response = await makeRequest(fresh);
+    } else {
+      clearAuthState();
+      throw new Error("Spotify API error: 401");
+    }
+  }
 
   if (response.status === 204) {
     return undefined as T;
@@ -713,15 +767,45 @@ export async function addToQueue(
   }
 }
 
+export async function removeFromQueue(
+  trackUri: string
+): Promise<{ ok: boolean; message?: string }> {
+  try {
+    await apiFetch(`/me/player/queue?uri=${encodeURIComponent(trackUri)}`, {
+      method: "DELETE",
+    });
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, message: errorMessage(error, "Could not remove from queue") };
+  }
+}
+
 // ─── Albums ───────────────────────────────────────────────────
+
+export function normalizeEntityId(
+  id: string | null | undefined
+): string | null {
+  if (!id) return null;
+  const clean = String(id).trim();
+  if (!clean) return null;
+  // SDK-sourced objects may carry a full URI (e.g. "spotify:album:abc") or an
+  // empty id; reduce to the plain base62 entity id or reject it.
+  const parts = clean.split(":");
+  const last = parts[parts.length - 1]?.trim() ?? "";
+  if (!last) return null;
+  if (/[^0-9A-Za-z_-]/.test(last)) return null;
+  return last;
+}
 
 export async function getAlbumTracks(
   albumId: string
 ): Promise<SpotifyTrack[]> {
+  const id = normalizeEntityId(albumId);
+  if (!id) return [];
   try {
     const { items } = await paginateAll<SpotifyTrack>({
       limit: 50,
-      buildUrl: (offset) => `/albums/${albumId}/tracks?limit=50&offset=${offset}`,
+      buildUrl: (offset) => `/albums/${id}/tracks?limit=50&offset=${offset}`,
       mapItem: (item) => item as SpotifyTrack,
     });
     return items;
@@ -733,8 +817,20 @@ export async function getAlbumTracks(
 export async function getAlbum(
   albumId: string
 ): Promise<SpotifyAlbum | null> {
+  const id = normalizeEntityId(albumId);
+  if (!id) return null;
   try {
-    return await apiFetch<SpotifyAlbum>(`/albums/${albumId}`);
+    return await apiFetch<SpotifyAlbum>(`/albums/${id}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function getTrack(trackId: string): Promise<SpotifyTrack | null> {
+  const id = normalizeEntityId(trackId);
+  if (!id) return null;
+  try {
+    return await apiFetch<SpotifyTrack>(`/tracks/${id}`);
   } catch {
     return null;
   }
@@ -746,9 +842,11 @@ export async function getArtistTopTracks(
   artistId: string,
   market: string = "US"
 ): Promise<SpotifyTrack[]> {
+  const id = normalizeEntityId(artistId);
+  if (!id) return [];
   try {
     const data = await apiFetch<ArtistTopTracks>(
-      `/artists/${artistId}/top-tracks?market=${market}`
+      `/artists/${id}/top-tracks?market=${market}`
     );
     return data.tracks;
   } catch {
@@ -794,9 +892,22 @@ function base64urlencode(buffer: ArrayBuffer): string {
   return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export async function loginWithSpotify(
-  _forcePremium = false
-): Promise<{ ok: boolean; error?: string }> {
+export function getRedirectUri(): string {
+  // Always redirect back to the origin that started the login so the PKCE
+  // state/verifier stored in that origin's localStorage actually match.
+  // Keep localhost/127.0.0.1 consistent: whichever origin the user opens the
+  // app on is the one Spotify must redirect to. Register BOTH
+  // http://localhost:3000/callback and http://127.0.0.1:3000/callback in the
+  // Spotify Developer Dashboard.
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/callback`;
+  }
+  return (
+    process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI || "http://127.0.0.1:3000/callback"
+  );
+}
+
+export async function loginWithSpotify(): Promise<{ ok: boolean; error?: string }> {
   try {
     const clientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
 
@@ -804,10 +915,18 @@ export async function loginWithSpotify(
       return { ok: false, error: "Spotify client ID not configured" };
     }
 
-    const redirectUri = process.env.NEXT_PUBLIC_SPOTIFY_REDIRECT_URI;
+    const redirectUri = getRedirectUri();
 
     if (!redirectUri) {
       return { ok: false, error: "Redirect URI not configured" };
+    }
+
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      return {
+        ok: false,
+        error:
+          "Login requires a secure context — open the app via http://localhost:3000 or http://127.0.0.1:3000",
+      };
     }
 
     const state = generateRandomString(16);
@@ -816,8 +935,8 @@ export async function loginWithSpotify(
       await sha256(codeVerifier)
     );
 
-    localStorage.setItem("spotify_state", state);
-    localStorage.setItem("spotify_code_verifier", codeVerifier);
+    safeSetItem("spotify_state", state);
+    safeSetItem("spotify_code_verifier", codeVerifier);
 
     const scopes = [
       "user-read-private",

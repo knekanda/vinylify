@@ -1,27 +1,47 @@
 "use client";
 
-import type { SpotifyTrack } from "../types/spotify";
+import { normalizeEntityId } from "../lib/spotify";
+import type { SpotifyAlbum, SpotifyArtist, SpotifyTrack } from "../types/spotify";
 import Image from "next/image";
 
 type Props = {
   currentTrack: SpotifyTrack | null;
   albumImageUrl: string | undefined;
-  isPlaying: boolean;
   onToggleNowPlaying: () => void;
   nowPlayingOpen: boolean;
+  onSelectArtist?: (a: SpotifyArtist) => void;
+  onSelectAlbum?: (a: SpotifyAlbum) => void;
 };
 
 export default function NowPlayingTrack({
   currentTrack,
   albumImageUrl,
-  isPlaying,
   onToggleNowPlaying,
   nowPlayingOpen,
+  onSelectArtist,
+  onSelectAlbum,
 }: Props) {
+  const artists = currentTrack?.artists ?? [];
+  const firstArtist = artists[0];
+  const canSelectArtist = Boolean(
+    firstArtist && onSelectArtist && normalizeEntityId(firstArtist.id)
+  );
+  const canSelectAlbum = Boolean(
+    currentTrack?.album && onSelectAlbum && normalizeEntityId(currentTrack.album.id)
+  );
+
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onToggleNowPlaying}
-      className="group relative flex shrink-0 items-center gap-3"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggleNowPlaying();
+        }
+      }}
+      className="group relative flex shrink-0 cursor-pointer items-center gap-3"
       aria-label="Show now playing"
     >
       {albumImageUrl ? (
@@ -53,9 +73,37 @@ export default function NowPlayingTrack({
           {currentTrack?.name || "Nothing playing"}
         </p>
         <p className="truncate text-[12px] text-[var(--color-text-secondary)]">
-          {currentTrack?.artists?.map((a) => a.name).join(", ") || "Select a track"}
+          {canSelectArtist ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectArtist!(firstArtist!);
+              }}
+              className="hover:text-[var(--color-text-primary)] hover:underline"
+            >
+              {firstArtist!.name}
+            </button>
+          ) : (
+            artists.map((a) => a.name).join(", ") || "Select a track"
+          )}
+          {canSelectArtist && artists.length > 1
+            ? `, ${artists.slice(1).map((a) => a.name).join(", ")}`
+            : ""}
         </p>
+        {canSelectAlbum && (
+          <p className="truncate text-[11px] text-[var(--color-text-tertiary)]">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectAlbum!(currentTrack!.album!);
+              }}
+              className="hover:text-[var(--color-text-primary)] hover:underline"
+            >
+              {currentTrack!.album!.name}
+            </button>
+          </p>
+        )}
       </div>
-    </button>
+    </div>
   );
 }

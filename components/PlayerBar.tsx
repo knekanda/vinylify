@@ -20,16 +20,13 @@ import {
   next,
   prev,
   seekTo,
-  setVolume,
   setRepeat,
   setShuffle,
-  saveTrack,
-  removeTrack,
-  checkSavedTracks,
   getAvailableDevices,
   transferPlayback,
 } from "../lib/spotify";
-import type { SpotifyDevice, SpotifyTrack } from "../types/spotify";
+import { useSavedTracks } from "../hooks/SavedTracksContext";
+import type { SpotifyAlbum, SpotifyArtist, SpotifyDevice, SpotifyTrack } from "../types/spotify";
 
 function formatDuration(ms: number) {
   if (!ms || ms < 0) return "0:00";
@@ -52,6 +49,12 @@ type Props = {
   onToggleQueue: () => void;
   notice: string | null;
   showNotice: (msg: string) => void;
+  volume: number;
+  muted: boolean;
+  onVolumeChange: (volume: number) => void;
+  onMuteToggle: () => void;
+  onSelectArtist?: (a: SpotifyArtist) => void;
+  onSelectAlbum?: (a: SpotifyAlbum) => void;
 };
 
 export default function PlayerBar({
@@ -67,38 +70,24 @@ export default function PlayerBar({
   onToggleQueue,
   notice,
   showNotice,
+  volume,
+  muted,
+  onVolumeChange,
+  onMuteToggle,
+  onSelectArtist,
+  onSelectAlbum,
 }: Props) {
+  const { isSaved, toggleSaved } = useSavedTracks();
   const [saving, setSaving] = useState<string | null>(null);
-  const [likedTracks, setLikedTracks] = useState<Set<string>>(new Set());
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPosition, setSeekPosition] = useState(0);
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [devices, setDevices] = useState<SpotifyDevice[]>([]);
   const [showDevices, setShowDevices] = useState(false);
-  const [volume, setVolumeState] = useState(70);
 
   const progressBarRef = useRef<HTMLDivElement>(null);
   const dragOffsetRef = useRef<number | null>(null);
   const lastSeekTimeRef = useRef<number>(0);
-
-  // Hydrate liked state when track changes
-  useEffect(() => {
-    if (!currentTrack) return;
-    let cancelled = false;
-    checkSavedTracks([currentTrack.id]).then((result) => {
-      if (cancelled) return;
-      if (result[0]) {
-        setLikedTracks((prev) => new Set(prev).add(currentTrack.id));
-      } else {
-        setLikedTracks((prev) => {
-          const next = new Set(prev);
-          next.delete(currentTrack.id);
-          return next;
-        });
-      }
-    });
-    return () => { cancelled = true; };
-  }, [currentTrack?.id]);
 
   const handlePause = useCallback(async () => {
     if (isPlaying) {
@@ -123,39 +112,21 @@ export default function PlayerBar({
   const handleSaveTrack = useCallback(async () => {
     if (!currentTrack) return;
     const trackId = currentTrack.id;
+    if (!trackId) {
+      showNotice("Cannot save local track");
+      return;
+    }
 
     setSaving(trackId);
 
-    if (likedTracks.has(trackId)) {
-      setLikedTracks((prev) => {
-        const next = new Set(prev);
-        next.delete(trackId);
-        return next;
-      });
+    const result = await toggleSaved(trackId);
 
-      const result = await removeTrack(trackId);
-
-      if (!result.ok) {
-        setLikedTracks((prev) => new Set(prev).add(trackId));
-        showNotice("Failed to remove from Library");
-      }
-    } else {
-      setLikedTracks((prev) => new Set(prev).add(trackId));
-
-      const result = await saveTrack(trackId);
-
-      if (!result.ok) {
-        setLikedTracks((prev) => {
-          const next = new Set(prev);
-          next.delete(trackId);
-          return next;
-        });
-        showNotice("Failed to add to Library");
-      }
+    if (!result.ok) {
+      showNotice("Could not update Library");
     }
 
     setTimeout(() => setSaving(null), 600);
-  }, [currentTrack, likedTracks, showNotice]);
+  }, [currentTrack, toggleSaved, showNotice]);
 
   const handleToggleShuffle = useCallback(async () => {
     const newState = !shuffle;
@@ -172,21 +143,9 @@ export default function PlayerBar({
     if (!result.ok) showNotice("Could not change repeat mode");
   }, [repeat, showNotice]);
 
-  const prevVolumeRef = useRef<number>(70);
-
   const handleMute = useCallback(async () => {
-    if (volume > 0) {
-      prevVolumeRef.current = volume;
-      setVolumeState(0);
-      const result = await setVolume(0);
-      if (!result.ok) showNotice("Could not change volume");
-    } else {
-      const restore = prevVolumeRef.current > 0 ? prevVolumeRef.current : 70;
-      setVolumeState(restore);
-      const result = await setVolume(restore);
-      if (!result.ok) showNotice("Could not change volume");
-    }
-  }, [volume, showNotice]);
+    onMuteToggle();
+  }, [onMuteToggle]);
 
   const startSeeking = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
@@ -326,9 +285,10 @@ export default function PlayerBar({
           <NowPlayingTrack
             currentTrack={currentTrack}
             albumImageUrl={currentTrack?.album?.images?.[0]?.url}
-            isPlaying={isPlaying}
             onToggleNowPlaying={onToggleNowPlaying}
             nowPlayingOpen={nowPlayingOpen}
+            onSelectArtist={onSelectArtist}
+            onSelectAlbum={onSelectAlbum}
           />
 
           {hasValidTrack && (
@@ -338,16 +298,16 @@ export default function PlayerBar({
               className={`control shrink-0 transition-all duration-normal ${
                 saving === currentTrack.id
                   ? "animate-pulse"
-                  : likedTracks.has(currentTrack.id)
+                  : isSaved(currentTrack.id)
                     ? "text-[var(--color-accent)]"
                     : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
               }`}
               aria-label="Save to Library"
-              aria-pressed={likedTracks.has(currentTrack.id)}
+              aria-pressed={isSaved(currentTrack.id)}
             >
               <HeartIcon
                 className={`h-5 w-5 ${
-                  likedTracks.has(currentTrack.id) ? "fill-current" : ""
+                  isSaved(currentTrack.id) ? "fill-current" : ""
                 }`}
               />
             </button>
@@ -489,12 +449,12 @@ export default function PlayerBar({
             <button
               onClick={handleMute}
               className={`control ${
-                volume === 0
+                muted
                   ? "text-[var(--color-text-tertiary)]"
                   : "text-[var(--color-text-secondary)]"
               }`}
-              aria-label={volume === 0 ? "Unmute" : "Mute"}
-              aria-pressed={volume === 0}
+              aria-label={muted ? "Unmute" : "Mute"}
+              aria-pressed={muted}
             >
               <SpeakerIcon className="h-4 w-4" />
             </button>
@@ -507,10 +467,7 @@ export default function PlayerBar({
               value={volume}
               aria-label="Volume"
               onChange={(e) => {
-                const val = parseInt(e.target.value);
-                setVolumeState(val);
-                prevVolumeRef.current = val;
-                setVolume(val);
+                onVolumeChange(parseInt(e.target.value));
               }}
             />
           </div>

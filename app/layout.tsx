@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,7 +28,12 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[var(--color-bg)] text-[var(--color-text-primary)]">{children}</body>
+      <body className="min-h-full flex flex-col bg-[var(--color-bg)] text-[var(--color-text-primary)]">
+        <link rel="preconnect" href="https://api.spotify.com" />
+        <link rel="preconnect" href="https://i.scdn.co" />
+        <link rel="preconnect" href="https://sdk.scdn.co" />
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </body>
     </html>
   );
 }

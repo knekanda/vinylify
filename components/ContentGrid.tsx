@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState, useEffect } from "react";
 import { PlayIcon, PauseIcon, QueueIcon, HeartIcon, HeartOutlineIcon } from "./icons";
 import GlassCard from "./GlassCard";
-import { addToQueue, saveTrack, removeTrack } from "../lib/spotify";
+import { addToQueue, normalizeEntityId } from "../lib/spotify";
+import { useSavedTracks } from "../hooks/SavedTracksContext";
 import Image from "next/image";
 import type { SpotifyAlbum, SpotifyArtist, SpotifyPlaylist, SpotifyTrack, SpotifyUser } from "../types/spotify";
 
@@ -20,6 +21,7 @@ type Props = {
   selectedPlaylist: SpotifyPlaylist | null;
   playlistTracks: SpotifyTrack[];
   searchResults: SpotifyTrack[];
+  searchLoading?: boolean;
   selectedArtist: SpotifyArtist | null;
   artistTracks: SpotifyTrack[];
   selectedAlbum: SpotifyAlbum | null;
@@ -29,6 +31,7 @@ type Props = {
   likedLoaded: number;
   likedTotal: number;
   onRefreshLiked: () => void;
+  onRemoveLikedTrack?: (trackId: string) => void;
   currentTrack: SpotifyTrack | null;
   isPlaying: boolean;
   onSelectPlaylist: (p: SpotifyPlaylist) => void;
@@ -37,6 +40,7 @@ type Props = {
   onSelectArtist: (a: SpotifyArtist) => void;
   onSelectAlbum: (a: SpotifyAlbum) => void;
   onNotice: (msg: string) => void;
+  onRetryHome?: () => void;
 };
 
 function CardSkeleton() {
@@ -61,7 +65,7 @@ function TrackRowSkeleton() {
   );
 }
 
-function TrackRow({
+const TrackRow = memo(function TrackRow({
   track,
   index,
   isActive,
@@ -70,36 +74,42 @@ function TrackRow({
   onSelectArtist,
   onSelectAlbum,
   onNotice,
+  saved,
+  onToggleSaved,
+  onLikedRemoved,
 }: {
   track: SpotifyTrack;
   index: number;
   isActive: boolean;
   isPlaying: boolean;
-  onPlay: () => void;
+  onPlay: (track: SpotifyTrack) => void;
   onSelectArtist?: (a: SpotifyArtist) => void;
   onSelectAlbum?: (a: SpotifyAlbum) => void;
   onNotice?: (msg: string) => void;
+  saved: boolean;
+  onToggleSaved: (id: string) => Promise<{ ok: boolean; skipped?: boolean }>;
+  onLikedRemoved?: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const [liked, setLiked] = useState(false);
   const cover = track.album?.images?.[0]?.url;
+
+  const liked = saved;
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const id = track.id;
-    if (liked) {
-      const res = await removeTrack(id);
-      if (res.ok) {
-        setLiked(false);
-        onNotice?.("Removed from Library");
-      }
-    } else {
-      const res = await saveTrack(id);
-      if (res.ok) {
-        setLiked(true);
-        onNotice?.("Added to Library");
-      }
+    if (!track.id) {
+      onNotice?.("Cannot save local track");
+      return;
     }
+    const target = !liked;
+    const res = await onToggleSaved(track.id);
+    if (res.skipped) return;
+    if (!res.ok) {
+      onNotice?.("Could not update Library");
+      return;
+    }
+    onNotice?.(target ? "Added to Library" : "Removed from Library");
+    if (!target) onLikedRemoved?.(track.id);
   };
 
   const handleAddToQueue = async (e: React.MouseEvent) => {
@@ -110,6 +120,12 @@ function TrackRow({
   };
 
   const firstArtist = track.artists?.[0];
+  const canSelectArtist = Boolean(
+    firstArtist && onSelectArtist && normalizeEntityId(firstArtist.id)
+  );
+  const canSelectAlbum = Boolean(
+    track.album && onSelectAlbum && normalizeEntityId(track.album.id)
+  );
 
   return (
     <div
@@ -118,19 +134,24 @@ function TrackRow({
           ? "bg-[var(--color-surface-interactive)]"
           : "hover:bg-[var(--color-surface-interactive)]"
       }`}
-      onClick={onPlay}
+      onClick={() => onPlay(track)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Number / Play button */}
+      {/* Number / Play button / equalizer */}
       <div className="relative flex h-5 w-8 shrink-0 items-center justify-center">
-        {hovered || isActive ? (
+        {hovered ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onPlay();
+              onPlay(track);
             }}
-            className="text-[var(--color-text-primary)]"
+            className={
+              isActive
+                ? "text-[var(--color-accent)]"
+                : "text-[var(--color-text-primary)]"
+            }
+            aria-label={isPlaying && isActive ? "Pause" : "Play"}
           >
             {isActive && isPlaying ? (
               <PauseIcon className="h-4 w-4" />
@@ -138,6 +159,30 @@ function TrackRow({
               <PlayIcon className="h-4 w-4" />
             )}
           </button>
+        ) : isActive ? (
+          <span
+            className={`flex items-center justify-center ${
+              isPlaying
+                ? "text-[var(--color-accent)]"
+                : "text-[var(--color-text-tertiary)]"
+            }`}
+            title={isPlaying ? "Playing" : "Paused"}
+          >
+            <span className="eq-bars" aria-hidden="true">
+              <span
+                className={`eq-bar ${isPlaying ? "" : "paused"} bg-current`}
+                style={{ height: 14, animationDelay: "0ms" }}
+              />
+              <span
+                className={`eq-bar ${isPlaying ? "" : "paused"} bg-current`}
+                style={{ height: 16, animationDelay: "160ms" }}
+              />
+              <span
+                className={`eq-bar ${isPlaying ? "" : "paused"} bg-current`}
+                style={{ height: 11, animationDelay: "320ms" }}
+              />
+            </span>
+          </span>
         ) : (
           <span
             className={`tabular-nums text-[14px] ${
@@ -178,12 +223,12 @@ function TrackRow({
           {track.name}
         </p>
         <p className="truncate text-[13px] text-[var(--color-text-secondary)]">
-          {firstArtist && onSelectArtist ? (
+          {firstArtist && canSelectArtist ? (
             <button
               className="hover:text-[var(--color-text-primary)] hover:underline"
               onClick={(e) => {
                 e.stopPropagation();
-                onSelectArtist(firstArtist);
+                onSelectArtist!(firstArtist);
               }}
             >
               {firstArtist.name}
@@ -191,17 +236,17 @@ function TrackRow({
           ) : (
             track.artists?.map((a) => a.name).join(", ") || "Unknown Artist"
           )}
-          {track.artists && track.artists.length > 1 && onSelectArtist
+          {track.artists && track.artists.length > 1 && canSelectArtist
             ? `, ${track.artists.slice(1).map((a) => a.name).join(", ")}`
             : ""}
         </p>
-        {track.album && onSelectAlbum && (
+        {track.album && canSelectAlbum && (
           <p className="truncate text-[13px] text-[var(--color-text-tertiary)]">
             <button
               className="hover:text-[var(--color-text-secondary)] hover:underline"
               onClick={(e) => {
                 e.stopPropagation();
-                onSelectAlbum(track.album!);
+                onSelectAlbum!(track.album!);
               }}
             >
               {track.album.name}
@@ -242,7 +287,7 @@ function TrackRow({
       </span>
     </div>
   );
-}
+});
 
 function formatDuration(ms: number) {
   const totalSec = Math.floor(ms / 1000);
@@ -251,11 +296,18 @@ function formatDuration(ms: number) {
   return `${min}:${sec.toString().padStart(2, "0")}`;
 }
 
+// Spotify lists can legally contain the same track more than once (recently
+// played, search) and local tracks have `id: null`. Composite keys keep each
+// row's identity unique while staying stable for a fixed render order.
+function trackKey(track: SpotifyTrack, index: number): string {
+  return `${track.id ?? "local"}-${index}`;
+}
+
 function quickPickData(playlists: SpotifyPlaylist[]) {
   return playlists.slice(0, 8);
 }
 
-export default function ContentGrid({
+const ContentGrid = memo(function ContentGrid({
   connected,
   homeStatus,
   user,
@@ -268,6 +320,7 @@ export default function ContentGrid({
   selectedPlaylist,
   playlistTracks,
   searchResults,
+  searchLoading,
   selectedArtist,
   artistTracks,
   selectedAlbum,
@@ -277,6 +330,7 @@ export default function ContentGrid({
   likedLoaded,
   likedTotal,
   onRefreshLiked,
+  onRemoveLikedTrack,
   currentTrack,
   isPlaying,
   onSelectPlaylist,
@@ -285,7 +339,38 @@ export default function ContentGrid({
   onSelectArtist,
   onSelectAlbum,
   onNotice,
+  onRetryHome,
 }: Props) {
+  const { isSaved, toggleSaved, loadSaved } = useSavedTracks();
+
+  useEffect(() => {
+    const ids = Array.from(
+      new Set(
+        (
+          view === "liked"
+            ? likedTracks
+            : view === "search"
+              ? searchResults
+              : view === "playlist"
+                ? playlistTracks
+                : view === "artist"
+                  ? artistTracks
+                  : view === "album"
+                    ? albumTracks
+                    : [...recent, ...topTracks]
+        )
+          .map((t) => t.id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+    if (!ids.length) return;
+    // Spotify's contains endpoint accepts up to 50 ids per call — hydrate all
+    // visible tracks (not just the first page) so hearts are accurate.
+    for (let i = 0; i < ids.length; i += 50) {
+      void loadSaved(ids.slice(i, i + 50));
+    }
+  }, [view, likedTracks, searchResults, playlistTracks, artistTracks, albumTracks, recent, topTracks, loadSaved]);
+
   if (!connected) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-6 pb-24 text-center gap-6">
@@ -325,7 +410,7 @@ export default function ContentGrid({
           <button
             onClick={async () => {
               const { loginWithSpotify } = await import("../lib/spotify");
-              loginWithSpotify(true);
+              loginWithSpotify();
             }}
             className="rounded-full border border-[var(--color-border-strong)] bg-transparent px-8 py-3.5 text-[16px] font-semibold text-[var(--color-text-primary)] transition-all duration-fast hover:border-[var(--color-text-primary)] hover:scale-105 active:scale-95"
           >
@@ -377,8 +462,17 @@ export default function ContentGrid({
           Couldn&rsquo;t load your music
         </h2>
         <p className="max-w-sm text-[15px] leading-relaxed text-[var(--color-text-secondary)]">
-          We couldn&rsquo;t connect to Spotify. Please reconnect your account.
+          We couldn&rsquo;t connect to Spotify. Check your connection and try again, or
+          reconnect your account.
         </p>
+        {onRetryHome && (
+          <button
+            onClick={onRetryHome}
+            className="rounded-full border border-[var(--color-border)] px-6 py-3 text-[15px] font-bold text-[var(--color-text-primary)] transition-colors duration-fast hover:bg-[var(--color-surface-interactive)]"
+          >
+            Try again
+          </button>
+        )}
         <button
           onClick={async () => {
             const { loginWithSpotify } = await import("../lib/spotify");
@@ -483,14 +577,16 @@ export default function ContentGrid({
               <div className="space-y-0.5">
                 {searchResults.map((track, i) => (
                   <TrackRow
-                    key={track.id}
+                    key={trackKey(track, i)}
                     track={track}
                     index={i}
                     isActive={currentTrack?.id === track.id}
                     isPlaying={isPlaying}
-                    onPlay={() => onPlayTrack(track)}
+                    onPlay={onPlayTrack}
                     onSelectArtist={onSelectArtist}
                     onSelectAlbum={onSelectAlbum}
+                    saved={isSaved(track.id)}
+                    onToggleSaved={toggleSaved}
                     onNotice={onNotice}
                   />
                 ))}
@@ -506,14 +602,29 @@ export default function ContentGrid({
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 pb-24">
           <div className="h-16 w-16 rounded-full bg-[var(--color-surface)] flex items-center justify-center">
-            <span className="text-3xl">🔍</span>
+            <span className={searchLoading ? "h-8 w-8 animate-spin rounded-full border-2 border-transparent border-t-[var(--color-accent)]" : "text-3xl"}>
+              {searchLoading ? "" : "🔍"}
+            </span>
           </div>
-          <p className="text-vinyl-headline text-center text-[var(--color-text-primary)]">
-            No results for &ldquo;{searchQuery}&rdquo;
-          </p>
-          <p className="text-center text-[15px] text-[var(--color-text-secondary)]">
-            Check your spelling, or try different keywords.
-          </p>
+          {searchLoading ? (
+            <>
+              <p className="text-vinyl-headline text-center text-[var(--color-text-primary)]">
+                Searching for &ldquo;{searchQuery}&rdquo;
+              </p>
+              <p className="text-center text-[15px] text-[var(--color-text-secondary)]">
+                Pulling the best matches from Spotify…
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-vinyl-headline text-center text-[var(--color-text-primary)]">
+                No results for &ldquo;{searchQuery}&rdquo;
+              </p>
+              <p className="text-center text-[15px] text-[var(--color-text-secondary)]">
+                Check your spelling, or try different keywords.
+              </p>
+            </>
+          )}
         </div>
       );
     }
@@ -526,14 +637,16 @@ export default function ContentGrid({
         <div className="space-y-0.5">
           {searchResults.map((track, i) => (
             <TrackRow
-              key={track.id}
+              key={trackKey(track, i)}
               track={track}
               index={i}
               isActive={currentTrack?.id === track.id}
               isPlaying={isPlaying}
-              onPlay={() => onPlayTrack(track)}
+              onPlay={onPlayTrack}
               onSelectArtist={onSelectArtist}
               onSelectAlbum={onSelectAlbum}
+              saved={isSaved(track.id)}
+              onToggleSaved={toggleSaved}
               onNotice={onNotice}
             />
           ))}
@@ -617,10 +730,9 @@ export default function ContentGrid({
         {/* Track List */}
         <div className="px-4 md:px-8">
           {/* Header */}
-          <div className="mb-2 flex items-center border-b border-[var(--color-border)] px-3 pb-2 text-[13px] font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
+          <div className="mb-2 hidden sm:flex items-center border-b border-[var(--color-border)] px-3 pb-2 text-[13px] font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
             <span className="w-10 text-center">#</span>
             <span className="ml-3 flex-1">Title</span>
-            <span className="hidden sm:block w-40">Album</span>
             <span className="w-16 text-right">⏱</span>
           </div>
 
@@ -637,14 +749,16 @@ export default function ContentGrid({
             <div className="space-y-0.5">
               {playlistTracks.map((track, i) => (
                 <TrackRow
-                  key={track.id}
+                  key={trackKey(track, i)}
                   track={track}
                   index={i}
                   isActive={currentTrack?.id === track.id}
                   isPlaying={isPlaying}
-                  onPlay={() => onPlayTrack(track)}
+                  onPlay={onPlayTrack}
                   onSelectArtist={onSelectArtist}
                   onSelectAlbum={onSelectAlbum}
+                  saved={isSaved(track.id)}
+                  onToggleSaved={toggleSaved}
                   onNotice={onNotice}
                 />
               ))}
@@ -725,14 +839,16 @@ export default function ContentGrid({
             ) : (
               artistTracks.map((track, i) => (
                 <TrackRow
-                  key={track.id}
+                  key={trackKey(track, i)}
                   track={track}
                   index={i}
                   isActive={currentTrack?.id === track.id}
                   isPlaying={isPlaying}
-                  onPlay={() => onPlayTrack(track)}
+                  onPlay={onPlayTrack}
                   onSelectArtist={onSelectArtist}
                   onSelectAlbum={onSelectAlbum}
+                  saved={isSaved(track.id)}
+                  onToggleSaved={toggleSaved}
                   onNotice={onNotice}
                 />
               ))
@@ -818,14 +934,16 @@ export default function ContentGrid({
             <div className="space-y-0.5">
               {albumTracks.map((track, i) => (
                 <TrackRow
-                  key={track.id}
+                  key={trackKey(track, i)}
                   track={track}
                   index={i}
                   isActive={currentTrack?.id === track.id}
                   isPlaying={isPlaying}
-                  onPlay={() => onPlayTrack(track)}
+                  onPlay={onPlayTrack}
                   onSelectArtist={onSelectArtist}
                   onSelectAlbum={onSelectAlbum}
+                  saved={isSaved(track.id)}
+                  onToggleSaved={toggleSaved}
                   onNotice={onNotice}
                 />
               ))}
@@ -922,14 +1040,17 @@ export default function ContentGrid({
             <div className="space-y-0.5">
               {likedTracks.map((track, i) => (
                 <TrackRow
-                  key={track.id}
+                  key={trackKey(track, i)}
                   track={track}
                   index={i}
                   isActive={currentTrack?.id === track.id}
                   isPlaying={isPlaying}
-                  onPlay={() => onPlayTrack(track)}
+                  onPlay={onPlayTrack}
                   onSelectArtist={onSelectArtist}
                   onSelectAlbum={onSelectAlbum}
+                  saved={isSaved(track.id)}
+                  onToggleSaved={toggleSaved}
+                  onLikedRemoved={onRemoveLikedTrack}
                   onNotice={onNotice}
                 />
               ))}
@@ -960,13 +1081,39 @@ export default function ContentGrid({
     <div className="flex-1 overflow-y-auto px-4 pb-28 md:px-6">
       {/* Greeting */}
       <div className="mt-4">
-        <p className="text-apple-caption uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">
+        <p
+          className="text-apple-caption uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]"
+          suppressHydrationWarning
+        >
           {dateLabel}
         </p>
-        <h2 className="mt-1 text-apple-display text-[var(--color-text-primary)] md:text-[40px]">
+        <h2
+          className="mt-1 text-apple-display text-[var(--color-text-primary)] md:text-[40px]"
+          suppressHydrationWarning
+        >
           {greeting}{firstName ? `, ${firstName}` : ""}
         </h2>
       </div>
+
+      {/* Empty home — no playlists, no listening history yet */}
+      {!hero &&
+        recent.length === 0 &&
+        quickPicks.length === 0 &&
+        topArtists.length === 0 &&
+        topTracks.length === 0 && (
+          <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface)]/60 px-6 py-12 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-surface-card)]">
+              <span className="text-2xl">🌱</span>
+            </div>
+            <p className="text-vinyl-title mt-1 text-[var(--color-text-primary)]">
+              Nothing here yet
+            </p>
+            <p className="max-w-sm text-[15px] leading-relaxed text-[var(--color-text-secondary)]">
+              Play something on Spotify — or create your first playlist — and
+              it&rsquo;ll show up here automatically.
+            </p>
+          </div>
+        )}
 
       {/* Featured hero — made for you */}
       {hero && (
@@ -1021,9 +1168,9 @@ export default function ContentGrid({
       {recent.length > 0 && (
         <HomeRow title="Recently Played">
           <div className="snap-row -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6">
-            {recent.slice(0, 12).map((track) => (
+            {recent.slice(0, 12).map((track, i) => (
               <TrackCoverCard
-                key={track.id}
+                key={trackKey(track, i)}
                 title={track.name}
                 subtitle={track.artists?.[0]?.name || ""}
                 image={track.album?.images?.[1]?.url || track.album?.images?.[0]?.url}
@@ -1092,14 +1239,16 @@ export default function ContentGrid({
           <div className="space-y-1">
             {topTracks.slice(0, 10).map((track, i) => (
               <TrackRow
-                key={track.id}
+                key={trackKey(track, i)}
                 track={track}
                 index={i}
                 isActive={currentTrack?.id === track.id}
                 isPlaying={isPlaying}
-                onPlay={() => onPlayTrack(track)}
+                onPlay={onPlayTrack}
                 onSelectArtist={onSelectArtist}
                 onSelectAlbum={onSelectAlbum}
+                saved={isSaved(track.id)}
+                onToggleSaved={toggleSaved}
                 onNotice={onNotice}
               />
             ))}
@@ -1108,7 +1257,9 @@ export default function ContentGrid({
       )}
     </div>
   );
-}
+});
+
+export default ContentGrid;
 
 function TrackCoverCard({
   title,
