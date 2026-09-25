@@ -1,0 +1,28 @@
+/* App shell and pre-auth layout fixes */
+
+/* Keep the desktop shell side-by-side: sidebar + content. The original
+   column layout pushed the content below the navigation and made the
+   signed-out screen appear only partially rendered. */
+main.relative.z-10.flex.flex-1.flex-col.overflow-hidden {
+  flex-direction: row;
+}
+
+main.relative.z-10.flex.flex-1.flex-col.overflow-hidden > div {
+  min-width: 0;
+}
+
+/* A little more breathing room for the signed-out landing state. */
+main.relative.z-10.flex.flex-1.flex-col.overflow-hidden .hero-album-shadow {
+  animation: scaleIn var(--duration-slow) var(--ease-apple) both;
+}
+
+/* Keep the empty player from visually competing with the landing screen. */
+.player-bar:has(.text-vinyl-caption) {
+  min-height: 80px;
+}
+
+@media (max-width: 767px) {
+  main.relative.z-10.flex.flex-1.flex-col.overflow-hidden {
+    flex-direction: column;
+  }
+}
