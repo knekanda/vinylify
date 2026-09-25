@@ -5,6 +5,13 @@
   --font-apple-text: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
 }
 
+html, body {
+  font-family: var(--font-apple-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-synthesis-weight: none;
+}
+
 .text-vinyl-display,
 .text-apple-display,
 .text-apple-title1,
@@ -30,49 +37,59 @@
   text-rendering: optimizeLegibility;
 }
 
-/* The pre-auth landing page: quiet, centered, editorial, and spacious. */
+/* The signed-out landing page should feel like a premium Apple product hero, not a dashboard. */
 main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  padding: clamp(2rem, 7vw, 6rem) clamp(1.5rem, 6vw, 5rem) 7rem;
+  padding: clamp(2.25rem, 6vw, 6rem) clamp(1.5rem, 5vw, 5rem) 7rem;
   gap: 1.5rem;
   border-radius: 1.5rem;
   background:
-    radial-gradient(circle at 50% 22%, rgba(104, 122, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 50% 18%, rgba(128, 143, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 50% 100%, rgba(29, 185, 84, 0.08), transparent 32%),
     linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.015) 55%, rgba(0,0,0,0.18));
 }
 
 main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6::before {
   position: absolute;
-  inset: 12% 20% auto;
+  left: 50%;
+  top: 8%;
   z-index: -1;
-  height: 22rem;
+  width: min(42rem, 68vw);
+  height: 20rem;
   border-radius: 999px;
-  background: rgba(91, 111, 255, 0.13);
-  content: "";
+  background: rgba(98, 114, 255, 0.12);
+  box-shadow: 0 40px 120px rgba(109, 122, 255, 0.16);
   filter: blur(90px);
+  transform: translateX(-50%);
+  content: "";
   pointer-events: none;
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > div:nth-child(2) {
+  position: relative;
+  z-index: 1;
 }
 
 main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > div:nth-child(2) h1 {
   margin: 0;
   font-family: var(--font-apple-display);
-  font-size: clamp(3rem, 8vw, 5.5rem);
+  font-size: clamp(3.1rem, 7vw, 5.7rem);
   font-weight: 650;
-  letter-spacing: -0.065em;
-  line-height: 0.98;
-  text-shadow: 0 12px 44px rgba(0,0,0,0.28);
+  letter-spacing: -0.07em;
+  line-height: 0.92;
+  text-shadow: 0 18px 56px rgba(0,0,0,0.28);
 }
 
 main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > div:nth-child(2) p {
-  max-width: 31rem;
+  max-width: 32rem;
   margin-top: 1rem;
   font-family: var(--font-apple-text);
-  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  font-size: clamp(1.02rem, 1.5vw, 1.2rem);
   line-height: 1.55;
   letter-spacing: -0.02em;
-  color: rgba(245, 245, 247, 0.68);
+  color: rgba(245, 245, 247, 0.7);
 }
 
 main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 {
@@ -88,24 +105,34 @@ main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.015em;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 16px 36px rgba(0,0,0,0.2), inset 0 1px rgba(255,255,255,0.12);
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 button:hover {
+  transform: translateY(-1px);
 }
 
 main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 button:first-child {
-  background: linear-gradient(135deg, #f5f5f7, #cfd3df);
-  color: #0b0b0d;
-  box-shadow: 0 12px 34px rgba(210, 218, 255, 0.18);
+  background: linear-gradient(135deg, #f5f5f7 0%, #e7ebf5 100%);
+  color: #101114;
+  box-shadow: 0 16px 40px rgba(193, 204, 255, 0.22), inset 0 1px rgba(255,255,255,0.8);
 }
 
 main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 button:first-child:hover {
-  background: #ffffff;
-  box-shadow: 0 16px 42px rgba(210, 218, 255, 0.28);
+  background: linear-gradient(135deg, #ffffff 0%, #eef1f8 100%);
+  box-shadow: 0 20px 48px rgba(193, 204, 255, 0.26), inset 0 1px rgba(255,255,255,0.9);
 }
 
 main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 button:last-child {
-  border-color: rgba(255,255,255,0.18);
-  background: rgba(255,255,255,0.045);
-  color: rgba(245,245,247,0.92);
+  background: rgba(255,255,255,0.04);
+  color: rgba(245,245,247,0.94);
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 button:last-child:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
 }
 
 main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > p:last-child {
@@ -114,11 +141,23 @@ main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.
   font-family: var(--font-apple-text);
   line-height: 1.5;
   letter-spacing: -0.01em;
+  color: rgba(245,245,247,0.64);
+}
+
+/* Stronger Apple-esque display type for the logo title if present. */
+main.relative.z-10 .text-vinyl-display,
+main.relative.z-10 .text-apple-display {
+  font-family: var(--font-apple-display);
+  letter-spacing: -0.065em;
 }
 
 @media (max-width: 767px) {
   main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 {
     border-radius: 0;
     padding-top: 3rem;
+  }
+
+  main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > div:nth-child(2) h1 {
+    letter-spacing: -0.05em;
   }
 }
