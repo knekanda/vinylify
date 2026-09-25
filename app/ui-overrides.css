@@ -1,169 +1,124 @@
-/* Premium shell, navigation, and pre-auth polish. */
+/* Premium Apple-inspired typography and signed-out landing treatment. */
 
 :root {
-  --premium-bg: rgba(13, 13, 17, 0.9);
-  --premium-surface: rgba(255, 255, 255, 0.05);
-  --premium-surface-strong: rgba(255, 255, 255, 0.08);
-  --premium-border: rgba(255, 255, 255, 0.08);
-  --premium-shadow: rgba(0, 0, 0, 0.32);
+  --font-apple-display: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --font-apple-text: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
 }
 
-html, body {
+.text-vinyl-display,
+.text-apple-display,
+.text-apple-title1,
+.text-apple-title2 {
+  font-family: var(--font-apple-display);
+  font-optical-sizing: auto;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+
+.text-vinyl-body,
+.text-vinyl-callout,
+.text-vinyl-subhead,
+.text-vinyl-footnote,
+.text-vinyl-caption,
+.text-apple-body,
+.text-apple-callout,
+.text-apple-subhead,
+.text-apple-footnote,
+.text-apple-caption {
+  font-family: var(--font-apple-text);
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+}
+
+/* The pre-auth landing page: quiet, centered, editorial, and spacious. */
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: clamp(2rem, 7vw, 6rem) clamp(1.5rem, 6vw, 5rem) 7rem;
+  gap: 1.5rem;
+  border-radius: 1.5rem;
   background:
-    radial-gradient(circle at 20% 0%, rgba(82, 110, 255, 0.16), transparent 26%),
-    radial-gradient(circle at 80% 20%, rgba(29, 185, 84, 0.12), transparent 28%),
-    var(--color-bg);
+    radial-gradient(circle at 50% 22%, rgba(104, 122, 255, 0.18), transparent 32%),
+    linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.015) 55%, rgba(0,0,0,0.18));
 }
 
-body {
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6::before {
+  position: absolute;
+  inset: 12% 20% auto;
+  z-index: -1;
+  height: 22rem;
+  border-radius: 999px;
+  background: rgba(91, 111, 255, 0.13);
+  content: "";
+  filter: blur(90px);
+  pointer-events: none;
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > div:nth-child(2) h1 {
+  margin: 0;
+  font-family: var(--font-apple-display);
+  font-size: clamp(3rem, 8vw, 5.5rem);
+  font-weight: 650;
+  letter-spacing: -0.065em;
+  line-height: 0.98;
+  text-shadow: 0 12px 44px rgba(0,0,0,0.28);
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > div:nth-child(2) p {
+  max-width: 31rem;
+  margin-top: 1rem;
+  font-family: var(--font-apple-text);
+  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  line-height: 1.55;
+  letter-spacing: -0.02em;
+  color: rgba(245, 245, 247, 0.68);
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 {
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 button {
+  min-height: 3.25rem;
+  padding-inline: 2rem;
+  border-radius: 999px;
+  font-family: var(--font-apple-text);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.2);
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 button:first-child {
+  background: linear-gradient(135deg, #f5f5f7, #cfd3df);
+  color: #0b0b0d;
+  box-shadow: 0 12px 34px rgba(210, 218, 255, 0.18);
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 button:first-child:hover {
+  background: #ffffff;
+  box-shadow: 0 16px 42px rgba(210, 218, 255, 0.28);
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > .flex.flex-col.gap-3 button:last-child {
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.045);
+  color: rgba(245,245,247,0.92);
+}
+
+main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 > p:last-child {
+  max-width: 27rem;
+  margin-top: 0.5rem;
+  font-family: var(--font-apple-text);
+  line-height: 1.5;
   letter-spacing: -0.01em;
 }
 
-/* Desktop: familiar Spotify shell with a premium glass frame. */
-main.relative.z-10.flex.flex-1.flex-col.overflow-hidden {
-  flex-direction: row;
-  gap: 0.75rem;
-  padding: 0.75rem;
-}
-
-main.relative.z-10.flex.flex-1.flex-col.overflow-hidden > div {
-  min-width: 0;
-  border: 1px solid var(--premium-border);
-  border-radius: 1.5rem;
-  background: rgba(15, 15, 18, 0.7);
-  box-shadow: 0 26px 60px var(--premium-shadow), inset 0 1px rgba(255,255,255,0.04);
-  backdrop-filter: blur(22px) saturate(120%);
-  -webkit-backdrop-filter: blur(22px) saturate(120%);
-}
-
-/* Sidebar polish */
-main.relative.z-10 > aside {
-  padding: 0;
-  gap: 0.75rem;
-}
-
-main.relative.z-10 > aside > div {
-  border: 1px solid var(--premium-border);
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 1.5rem;
-  box-shadow: inset 0 1px rgba(255,255,255,0.04);
-}
-
-main.relative.z-10 > aside button {
-  min-height: 44px;
-  border-radius: 0.8rem;
-  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease, border-color 180ms ease;
-}
-
-main.relative.z-10 > aside button:hover {
-  transform: translateX(2px);
-  background: rgba(255,255,255,0.04);
-}
-
-main.relative.z-10 > aside button svg,
-main.relative.z-10 > aside button img {
-  transition: transform 180ms ease;
-}
-
-main.relative.z-10 > aside button:hover svg,
-main.relative.z-10 > aside button:hover img {
-  transform: scale(1.04);
-}
-
-/* Header and search bar */
-main.relative.z-10 header {
-  min-height: 72px;
-  padding-inline: clamp(1rem, 2.2vw, 2rem);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.nav-pill {
-  min-height: 44px;
-  max-width: 38rem;
-  background: rgba(255, 255, 255, 0.065);
-  border: 1px solid rgba(255,255,255,0.04);
-  box-shadow: inset 0 1px rgba(255,255,255,0.04);
-}
-
-.nav-pill:hover {
-  background: rgba(255,255,255,0.085);
-}
-
-.nav-pill:focus-within {
-  border-color: rgba(41, 151, 255, 0.55);
-  box-shadow: 0 0 0 3px rgba(41, 151, 255, 0.12), inset 0 1px rgba(255,255,255,0.04);
-}
-
-/* Signed-out landing polish */
-main.relative.z-10 .hero-album-shadow {
-  animation: scaleIn var(--duration-slow) var(--ease-apple) both;
-  filter: drop-shadow(0 26px 60px rgba(0, 0, 0, 0.42));
-}
-
-main.relative.z-10 .hero-album-shadow > div {
-  border: 1px solid rgba(255,255,255,0.09);
-}
-
-/* Player rail polish */
-.player-bar {
-  min-height: 84px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  background: rgba(9,9,12,0.8);
-  backdrop-filter: blur(18px) saturate(120%);
-  -webkit-backdrop-filter: blur(18px) saturate(120%);
-}
-
-.player-bar button,
-.player-bar .control {
-  transition: transform 180ms ease, opacity 180ms ease, background-color 180ms ease;
-}
-
-.player-bar button:hover,
-.player-bar .control:hover {
-  transform: translateY(-1px);
-}
-
-/* Content card rhythm */
-button.group,
-button.snap-start,
-button.glass-card {
-  transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
-}
-
-button.group:hover,
-button.snap-start:hover,
-button.glass-card:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255,255,255,0.13);
-  box-shadow: 0 12px 28px rgba(0,0,0,0.18);
-}
-
-/* Make the hero cards feel more Apple-like */
-main.relative.z-10 [role="button"].group,
-main.relative.z-10 .group.relative {
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.08);
-}
-
-/* Fine-tune the shell on smaller screens */
 @media (max-width: 767px) {
-  main.relative.z-10.flex.flex-1.flex-col.overflow-hidden {
-    flex-direction: column;
-    gap: 0;
-    padding: 0;
-  }
-
-  main.relative.z-10.flex.flex-1.flex-col.overflow-hidden > div {
-    border: 0;
+  main.relative.z-10 .flex.flex-1.flex-col.items-center.justify-center.px-6.pb-24.text-center.gap-6 {
     border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
-  main.relative.z-10 header {
-    min-height: 64px;
-    border-bottom: 0;
+    padding-top: 3rem;
   }
 }
